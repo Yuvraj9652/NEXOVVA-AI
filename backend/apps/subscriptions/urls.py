@@ -1,4 +1,6 @@
 from django.urls import path
+from .views import SubscriptionView
 
-
-urlpatterns = []
+urlpatterns = [
+    path("", SubscriptionView.as_view()),
+]

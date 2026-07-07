@@ -1,11 +1,12 @@
 from django.db import transaction
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from apps.tasks.models import Task
 from apps.contacts.models import Contact
 from apps.pipeline.models import Deal
 from apps.leads.models import Lead
 from apps.audit.services import ActivityLogService
 
+User = get_user_model()
 
 class TasksService:
     @staticmethod

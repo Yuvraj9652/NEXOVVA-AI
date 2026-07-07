@@ -40,4 +40,4 @@ class UnitSerializer(serializers.ModelSerializer):
             "images",
             "created_at",
         ]
-        read_only_fields = ["id", "images", "created_at"]
+        read_only_fields = ["id", "images", "created_at", "updated_at"]

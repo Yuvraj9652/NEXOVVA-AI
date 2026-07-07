@@ -1,5 +1,11 @@
-from django.http import JsonResponse
+from rest_framework import viewsets
+from rest_framework.permissions import IsAuthenticated
+
+from .models import Company
+from .serializers import CompanySerializer
 
 
-def health_check(request):
-    return JsonResponse({"status": "ok"})
+class CompanyViewSet(viewsets.ModelViewSet):
+    queryset = Company.objects.all()
+    serializer_class = CompanySerializer
+    permission_classes = [IsAuthenticated]
