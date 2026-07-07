@@ -1,4 +1,14 @@
-class CalendarService:
-    """Service layer for Calendar app."""
+from apps.tasks.models import Task
 
-    pass
+
+class CalendarService:
+    @staticmethod
+    def get_events(organization):
+        return Task.objects.filter(
+            organization=organization
+        ).values(
+            "id",
+            "title",
+            "due_date",
+            "completed",
+        )

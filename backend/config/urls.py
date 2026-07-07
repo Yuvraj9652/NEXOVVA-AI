@@ -7,6 +7,7 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/auth/", include("apps.authentication.urls")),
+    path("api/accounts/", include("apps.accounts.urls")),
     path("api/contacts/", include("apps.contacts.urls")),
     path("api/leads/", include("apps.leads.urls")),
     path("api/pipeline/", include("apps.pipeline.urls")),
@@ -20,8 +21,17 @@ urlpatterns = [
     path("api/notifications/", include("apps.notifications.urls")),
     path("api/automation/", include("apps.automation.urls")),
     path("api/reports/", include("apps.reports.urls")),
+    path("api/dashboard/", include("apps.dashboard.urls")),
+    path("api/analytics/", include("apps.analytics.urls")),
+    path("api/communications/", include("apps.communications.urls")),
+    path("api/calendar/", include("apps.calendar.urls")),
+    path("api/billing/", include("apps.billing.urls")),
+    path("api/subscriptions/", include("apps.subscriptions.urls")),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
+    path("api/organizations/", include("apps.organizations.urls")),
+    path("api/employees/", include("apps.employees.urls")),
+    path("api/companies/", include("apps.companies.urls")),
 ]
 
 if settings.DEBUG:

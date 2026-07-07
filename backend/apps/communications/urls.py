@@ -1,4 +1,7 @@
 from django.urls import path
 
+from .views import CommunicationView
 
-urlpatterns = []
+urlpatterns = [
+    path("", CommunicationView.as_view(), name="communications"),
+]

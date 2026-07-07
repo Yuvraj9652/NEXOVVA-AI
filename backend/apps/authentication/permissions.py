@@ -25,8 +25,8 @@ class IsAdminUserRole(BasePermission):
         return (
             request.user
             and request.user.is_authenticated
-            and request.user_profile
-            and request.user_profile.role == UserProfile.Roles.ADMIN
+            and request.user.userprofile
+            and request.user.userprofile.role == UserProfile.Roles.ADMIN
         )
 
 
@@ -37,6 +37,6 @@ class IsManagerUserRole(BasePermission):
         return (
             request.user
             and request.user.is_authenticated
-            and request.user_profile
-            and request.user_profile.role in [UserProfile.Roles.ADMIN, UserProfile.Roles.MANAGER]
+            and request.user.userprofile
+            and request.user.userprofile.role in [UserProfile.Roles.ADMIN, UserProfile.Roles.MANAGER]
         )

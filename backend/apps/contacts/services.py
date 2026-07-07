@@ -1,8 +1,9 @@
 from django.db import transaction
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from apps.contacts.models import Contact
 from apps.audit.services import ActivityLogService
 
+User = get_user_model()
 
 class ContactService:
     @staticmethod

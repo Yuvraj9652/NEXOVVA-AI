@@ -1,10 +1,11 @@
 from django.db import transaction
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from apps.pipeline.models import PipelineStage, Deal
 from apps.contacts.models import Contact
 from apps.companies.models import Company
 from apps.audit.services import ActivityLogService
 
+User = get_user_model()
 
 class PipelineService:
     @staticmethod
