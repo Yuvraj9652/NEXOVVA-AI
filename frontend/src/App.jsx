@@ -10,6 +10,8 @@ import Sidebar from "./components/layout/Sidebar"
 import Home from "./pages/Home"
 import Login from "./pages/Login"
 import Register from "./pages/Register"
+import OTPVerify from "./pages/OTPVerify"
+import OAuthCallback from "./pages/OAuthCallback"
 import Dashboard from "./pages/Dashboard"
 import CRM from "./pages/CRM"
 import AIChat from "./pages/AIChat"
@@ -58,6 +60,8 @@ function AppContent() {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/verify-otp" element={<OTPVerify />} />
+        <Route path="/oauth-callback" element={<OAuthCallback />} />
 
         {/* Protected Dashboard Layout */}
         <Route
