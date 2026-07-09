@@ -31,9 +31,9 @@ export default function Register() {
 
     try {
       await axios.post("/api/auth/register/", formData)
-      setSuccess("Account created! Redirecting to login...")
+      setSuccess("Account created! Redirecting to OTP verification...")
       setTimeout(() => {
-        navigate("/login")
+        navigate(`/verify-otp?email=${encodeURIComponent(formData.email)}`)
       }, 2000)
     } catch (err) {
       const data = err.response?.data
@@ -243,6 +243,28 @@ export default function Register() {
                 >
                   {isLoading ? "Creating Workspace..." : "Register Workspace"}
                   {!isLoading && <ArrowRight className="h-4 w-4" />}
+                </button>
+
+                <div className="relative flex py-2 items-center">
+                  <div className="flex-grow border-t border-border"></div>
+                  <span className="flex-shrink mx-4 text-xs text-muted-foreground uppercase">Or</span>
+                  <div className="flex-grow border-t border-border"></div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => window.location.href = "/api/auth/google/login/"}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-card hover:bg-muted/40 py-2.5 text-sm font-bold text-foreground transition-all"
+                >
+                  <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg">
+                    <g transform="matrix(1, 0, 0, 1, 0, 0)">
+                      <path d="M21.35,11.1H12v2.7h5.38c-0.24,1.28 -0.96,2.37 -2.04,3.1v2.6h3.29c1.92,-1.78 3.02,-4.4 3.02,-7.4C21.65,11.83 21.54,11.45 21.35,11.1z" fill="#4285F4" />
+                      <path d="M12,20.5c2.3,0 4.23,-0.76 5.64,-2.07l-3.29,-2.6c-0.91,0.61 -2.08,0.98 -3.35,0.98 -2.57,0 -4.75,-1.74 -5.53,-4.07H2.07v2.69C3.56,18.3 7.49,20.5 12,20.5z" fill="#34A853" />
+                      <path d="M6.47,12.74c-0.2,-0.61 -0.31,-1.26 -0.31,-1.93s0.11,-1.33 0.31,-1.93V6.23H2.07c-0.67,1.34 -1.07,2.85 -1.07,4.58s0.4,3.24 1.07,4.58L6.47,12.74z" fill="#FBBC05" />
+                      <path d="M12,5.19c1.25,0 2.37,0.43 3.25,1.27l2.44,-2.44C16.22,2.6 14.29,1.75 12,1.75c-4.51,0 -8.44,2.2 -9.93,5.17l4.4,3.42C7.25,6.93 9.43,5.19 12,5.19z" fill="#EA4335" />
+                    </g>
+                  </svg>
+                  Sign up with Google
                 </button>
               </form>
 
