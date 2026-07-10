@@ -10,6 +10,7 @@ import {
   Sparkles,
   Building,
   User,
+  Settings as SettingsIcon,
   ChevronDown,
   FolderOpen,
   FileText,
@@ -71,6 +72,11 @@ export default function Sidebar() {
       path: "/ai-chat",
       name: "AI Assistant",
       icon: MessageSquare,
+    },
+    {
+      path: "/settings",
+      name: "Settings & Security",
+      icon: SettingsIcon,
     },
   ]
 

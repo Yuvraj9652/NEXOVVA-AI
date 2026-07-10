@@ -30,6 +30,9 @@ from apps.authentication.serializers import (
     VerifyResetOTPSerializer,
     ResendVerificationSerializer,
     ResendOTPSerializer,
+    MFAVerifySerializer,
+    MFADisableSerializer,
+    MFAVerifyLoginSerializer,
 )
 from apps.authentication.services import AuthService, ProfileService
 
@@ -131,7 +134,7 @@ class LoginView(GenericAPIView):
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        result = AuthService.login(serializer.validated_data)
+        result = AuthService.login(serializer.validated_data, request=request)
         return Response(
             {
                 "success": True,
@@ -465,8 +468,6 @@ class GoogleLoginSuccessView(View):
             import traceback
             traceback.print_exc()
             print("Google OAuth Error:", repr(e))
-            if settings.DEBUG:
-                raise
             frontend_base_url = getattr(settings, "FRONTEND_URL", "http://localhost:3000").rstrip("/")
             return redirect(f"{frontend_base_url}/login?error=oauth_failed")
 
@@ -476,3 +477,238 @@ class GoogleLoginSuccessView(View):
         frontend_base_url = getattr(settings, "FRONTEND_URL", "http://localhost:3000").rstrip("/")
         frontend_url = f"{frontend_base_url}/oauth-callback?access={tokens['access']}&refresh={tokens['refresh']}"
         return redirect(frontend_url)
+
+
+class MFAStatusView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        summary="Get MFA Status",
+        description="Returns whether the user has active MFA configured.",
+        responses={200: OpenApiResponse(description="MFA status retrieved successfully")}
+    )
+    def get(self, request, *args, **kwargs):
+        from django_otp.plugins.otp_totp.models import TOTPDevice
+        has_mfa = TOTPDevice.objects.filter(user=request.user, confirmed=True).exists()
+        return Response({
+            "success": True,
+            "message": "MFA status retrieved.",
+            "data": {
+                "mfa_enabled": has_mfa
+            },
+            "errors": []
+        }, status=status.HTTP_200_OK)
+
+
+class MFASetupView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        summary="Setup MFA TOTP Device",
+        description="Generates an unconfirmed TOTP device and returns secret key / config_url.",
+        responses={200: OpenApiResponse(description="MFA setup initiated successfully")}
+    )
+    def post(self, request, *args, **kwargs):
+        from django_otp.plugins.otp_totp.models import TOTPDevice
+        user = request.user
+        
+        # Check if already enabled
+        if TOTPDevice.objects.filter(user=user, confirmed=True).exists():
+            return Response({
+                "success": False,
+                "message": "MFA is already enabled on this account.",
+                "data": {},
+                "errors": [{"message": "MFA is already enabled."}]
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Get or create unconfirmed device
+        device, created = TOTPDevice.objects.get_or_create(user=user, confirmed=False, name="default")
+        
+        # Construct provisioning URL for QR code
+        config_url = device.config_url
+        
+        # Extract secret from config_url
+        import urllib.parse
+        parsed_url = urllib.parse.urlparse(config_url)
+        params = urllib.parse.parse_qs(parsed_url.query)
+        secret = params.get("secret", [""])[0]
+
+        return Response({
+            "success": True,
+            "message": "MFA setup initiated.",
+            "data": {
+                "secret": secret,
+                "config_url": config_url,
+            },
+            "errors": []
+        }, status=status.HTTP_200_OK)
+
+
+class MFAVerifySetupView(GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = MFAVerifySerializer
+
+    @extend_schema(
+        summary="Verify and Enable MFA",
+        description="Validates a token. If successful, confirms the setup to activate MFA.",
+        responses={200: OpenApiResponse(description="MFA activated successfully")}
+    )
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        from django_otp.plugins.otp_totp.models import TOTPDevice
+        user = request.user
+        token = serializer.validated_data["token"]
+        
+        # Find unconfirmed device
+        device = TOTPDevice.objects.filter(user=user, confirmed=False, name="default").first()
+        if not device:
+            return Response({
+                "success": False,
+                "message": "MFA setup has not been initiated.",
+                "data": {},
+                "errors": [{"message": "No setup in progress."}]
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        if device.verify_token(token):
+            device.confirmed = True
+            device.save()
+            return Response({
+                "success": True,
+                "message": "MFA verified and enabled successfully.",
+                "data": {},
+                "errors": []
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                "success": False,
+                "message": "Invalid code. Please try again.",
+                "data": {},
+                "errors": [{"message": "Invalid verification code."}]
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class MFADisableView(GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = MFADisableSerializer
+
+    @extend_schema(
+        summary="Disable MFA",
+        description="Disables MFA for the user by deleting the confirmed device.",
+        responses={200: OpenApiResponse(description="MFA disabled successfully")}
+    )
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        from django_otp.plugins.otp_totp.models import TOTPDevice
+        user = request.user
+        token = serializer.validated_data["token"]
+        
+        device = TOTPDevice.objects.filter(user=user, confirmed=True).first()
+        if not device:
+            return Response({
+                "success": False,
+                "message": "MFA is not enabled on this account.",
+                "data": {},
+                "errors": [{"message": "MFA not enabled."}]
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        if device.verify_token(token):
+            device.delete()
+            return Response({
+                "success": True,
+                "message": "MFA has been disabled successfully.",
+                "data": {},
+                "errors": []
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                "success": False,
+                "message": "Invalid code. Could not disable MFA.",
+                "data": {},
+                "errors": [{"message": "Invalid verification code."}]
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class MFAVerifyLoginView(GenericAPIView):
+    permission_classes = [permissions.AllowAny]
+    serializer_class = MFAVerifyLoginSerializer
+
+    @extend_schema(
+        summary="Verify MFA login OTP",
+        description="Authenticates MFA login OTP code using temp login token and returns final JWT tokens.",
+        responses={200: OpenApiResponse(description="Login verified, JWT tokens returned")}
+    )
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        temp_token = serializer.validated_data["temp_token"]
+        token = serializer.validated_data["token"]
+        
+        # Verify temp_token
+        from django.core import signing
+        from django.contrib.auth import get_user_model
+        from rest_framework_simplejwt.tokens import RefreshToken
+        from apps.accounts.models import UserProfile
+        
+        User = get_user_model()
+        try:
+            data = signing.loads(temp_token, salt="mfa-login", max_age=300) # 5 min expiry
+            user = User.objects.get(id=data["user_id"])
+        except (signing.SignatureExpired, signing.BadSignature, User.DoesNotExist):
+            return Response({
+                "success": False,
+                "message": "Login session has expired or is invalid. Please sign in again.",
+                "data": {},
+                "errors": [{"message": "Invalid login session."}]
+            }, status=status.HTTP_401_UNAUTHORIZED)
+            
+        # Verify TOTP code
+        from django_otp.plugins.otp_totp.models import TOTPDevice
+        device = TOTPDevice.objects.filter(user=user, confirmed=True).first()
+        if not device:
+            return Response({
+                "success": False,
+                "message": "MFA is not enabled for this user.",
+                "data": {},
+                "errors": [{"message": "MFA not enabled."}]
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        if device.verify_token(token):
+            # Login successful! Generate standard JWT tokens
+            refresh = RefreshToken.for_user(user)
+            user_profile, _ = UserProfile.objects.get_or_create(user=user)
+            
+            return Response({
+                "success": True,
+                "message": "MFA verified. Login successful.",
+                "data": {
+                    "mfa_required": False,
+                    "refresh": str(refresh),
+                    "access": str(refresh.access_token),
+                    "user": {
+                        "id": str(user.id),
+                        "username": user.username,
+                        "email": user.email,
+                        "first_name": user.first_name,
+                        "last_name": user.last_name,
+                        "role": user_profile.role,
+                        "organization": {
+                            "id": str(user_profile.organization.id) if user_profile.organization else None,
+                            "name": user_profile.organization.name if user_profile.organization else None,
+                            "slug": user_profile.organization.slug if user_profile.organization else None,
+                        } if user_profile.organization else None,
+                    }
+                },
+                "errors": []
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                "success": False,
+                "message": "Invalid code. Please try again.",
+                "data": {},
+                "errors": [{"message": "Invalid verification code."}]
+            }, status=status.HTTP_400_BAD_REQUEST)

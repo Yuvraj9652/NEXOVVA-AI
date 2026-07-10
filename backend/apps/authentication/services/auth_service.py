@@ -3,19 +3,16 @@ import hashlib
 from datetime import timedelta
 from django.utils import timezone
 from django.conf import settings
-from django.contrib.auth import get_user_model, authenticate
+from django.contrib.auth import authenticate
 from django.contrib.auth.hashers import make_password
 from django.db import transaction
 from rest_framework.exceptions import ValidationError, AuthenticationFailed
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 
-from apps.accounts.models import Profile, UserProfile
+from apps.accounts.models import Profile, UserProfile, CustomUser as User
 from apps.organizations.models import Organization
 from apps.authentication.models import PendingRegistration, PasswordResetToken
 from apps.authentication.services.email_service import EmailService
-
-User = get_user_model()
-
 
 def hash_otp(code: str) -> str:
     """Securely hash a numeric OTP code using SHA-256."""
@@ -71,7 +68,14 @@ class AuthService:
         )
 
         # Send OTP to email
-        EmailService.send_verification_email(pending, otp_code)
+        try:
+            EmailService.send_verification_email(pending, otp_code)
+        except Exception as e:
+            # Clean up pending record so user can try again
+            pending.delete()
+            raise ValidationError({
+                "email": f"Verification email could not be sent: {str(e)}. Please check your email settings."
+            })
 
         return pending
 
@@ -185,10 +189,15 @@ class AuthService:
         pending.save()
 
         # Send OTP
-        EmailService.send_verification_email(pending, otp_code)
+        try:
+            EmailService.send_verification_email(pending, otp_code)
+        except Exception as e:
+            raise ValidationError({
+                "email": f"Verification email could not be resent: {str(e)}. Please try again later."
+            })
 
     @staticmethod
-    def login(data: dict) -> dict:
+    def login(data: dict, request=None) -> dict:
         """Authenticate a user using username or email and password."""
         username_or_email = data.get("username") or data.get("email")
         password = data.get("password")
@@ -206,7 +215,7 @@ class AuthService:
                 raise AuthenticationFailed("Invalid username or password.")
 
         # Authenticate
-        user_auth = authenticate(username=user.username, password=password)
+        user_auth = authenticate(request=request, username=user.username, password=password)
         if not user_auth:
             raise AuthenticationFailed("Invalid credentials.")
 
@@ -220,11 +229,23 @@ class AuthService:
         # Update last activity
         User.objects.filter(pk=user.pk).update(last_activity=timezone.now())
 
+        # Check for confirmed MFA TOTP device
+        from django_otp.plugins.otp_totp.models import TOTPDevice
+        from django.core import signing
+        has_mfa = TOTPDevice.objects.filter(user=user, confirmed=True).exists()
+        if has_mfa:
+            temp_token = signing.dumps({"user_id": str(user.id)}, salt="mfa-login")
+            return {
+                "mfa_required": True,
+                "temp_token": temp_token,
+            }
+
         # Generate tokens
         refresh = RefreshToken.for_user(user)
         user_profile, _ = UserProfile.objects.get_or_create(user=user)
 
         return {
+            "mfa_required": False,
             "refresh": str(refresh),
             "access": str(refresh.access_token),
             "user": {
@@ -285,7 +306,14 @@ class AuthService:
             expires_at=timezone.now() + timedelta(minutes=10),
         )
 
-        EmailService.send_password_reset_email(user, otp_code)
+        # Send reset email
+        try:
+            EmailService.send_password_reset_email(user, otp_code)
+        except Exception as e:
+            PasswordResetToken.objects.filter(user=user, otp_code=hashed_otp).update(is_used=True)
+            raise ValidationError({
+                "email": f"Password reset email could not be sent: {str(e)}. Please try again later."
+            })
 
     @staticmethod
     def verify_reset_otp(data: dict) -> None:
