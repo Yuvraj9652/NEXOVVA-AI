@@ -4,11 +4,12 @@ import urllib.request
 import urllib.error
 from django.conf import settings
 from django.db import transaction
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 
 from apps.ai.models import ChatSession, ChatMessage, AIUsage, PromptTemplate
 from apps.organizations.models import Organization
 
+User = get_user_model()
 
 class GeminiService:
     API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"

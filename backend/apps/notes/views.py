@@ -43,7 +43,7 @@ class NoteViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         if (
             instance.author != self.request.user
-            and self.request.user_profile.role != UserProfile.Roles.ADMIN
+            and self.request.user.userprofile.role != UserProfile.Roles.ADMIN
         ):
             raise exceptions.PermissionDenied("You do not have permission to edit this note.")
 
@@ -58,7 +58,7 @@ class NoteViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         if (
             instance.author != self.request.user
-            and self.request.user_profile.role != UserProfile.Roles.ADMIN
+            and self.request.user.userprofile.role != UserProfile.Roles.ADMIN
         ):
             raise exceptions.PermissionDenied("You do not have permission to delete this note.")
 

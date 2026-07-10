@@ -1,4 +1,6 @@
 from django.urls import path
+from .views import BillingView
 
-
-urlpatterns = []
+urlpatterns = [
+    path("", BillingView.as_view()),
+]

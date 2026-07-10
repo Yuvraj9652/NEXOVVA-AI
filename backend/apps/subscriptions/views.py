@@ -1,5 +1,7 @@
-from django.http import JsonResponse
+from rest_framework.views import APIView
+from rest_framework.response import Response
 
 
-def health_check(request):
-    return JsonResponse({"status": "ok"})
+class SubscriptionView(APIView):
+    def get(self, request):
+        return Response({"message": "Subscriptions module coming soon"})

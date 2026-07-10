@@ -1,4 +1,5 @@
 from django.contrib import admin
+from .models import PipelineStage, Deal
 
-
-# Register your models here.
+admin.site.register(PipelineStage)
+admin.site.register(Deal)
