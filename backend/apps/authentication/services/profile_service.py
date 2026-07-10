@@ -1,8 +1,5 @@
-from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import UploadedFile
-from apps.accounts.models import Profile, UserProfile
-
-User = get_user_model()
+from apps.accounts.models import Profile, UserProfile, CustomUser as User
 
 
 class ProfileService:

@@ -1,6 +1,6 @@
-import React, { useState } from "react"
-import { Link, useNavigate } from "react-router-dom"
-import { Sparkles, Eye, EyeOff, Lock, User, ArrowRight, Building2 } from "lucide-react"
+import React, { useState, useEffect } from "react"
+import { Link, useNavigate, useSearchParams } from "react-router-dom"
+import { Sparkles, Eye, EyeOff, Lock, User, ArrowRight, Building2, Key, ArrowLeft } from "lucide-react"
 import axios from "axios"
 import useAuthStore from "../store/authStore"
 
@@ -11,8 +11,25 @@ export default function Login() {
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
 
+  // MFA states
+  const [mfaRequired, setMfaRequired] = useState(false)
+  const [tempToken, setTempToken] = useState("")
+  const [totpToken, setTotpToken] = useState("")
+
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const login = useAuthStore((state) => state.login)
+
+  useEffect(() => {
+    const errorParam = searchParams.get("error")
+    if (errorParam === "oauth_failed") {
+      setError("Google authentication failed. Please try again.")
+    } else if (errorParam === "oauth_cancelled") {
+      setError("Google authentication was cancelled.")
+    } else if (errorParam === "oauth_not_configured") {
+      setError("Google OAuth is not configured on the server.")
+    }
+  }, [searchParams])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -24,9 +41,15 @@ export default function Login() {
         username,
         password,
       })
-      const { access, refresh, user } = response.data
-      login(access, refresh, user)
-      navigate("/dashboard")
+      const result = response.data.data || response.data
+      
+      if (result.mfa_required) {
+        setMfaRequired(true)
+        setTempToken(result.temp_token)
+      } else {
+        login(result.access, result.refresh, result.user)
+        navigate("/dashboard")
+      }
     } catch (err) {
       setError(
         err.response?.data?.detail || "Invalid credentials. Please try again."
@@ -36,10 +59,40 @@ export default function Login() {
     }
   }
 
+  const handleMfaSubmit = async (e) => {
+    e.preventDefault()
+    setError("")
+    setIsLoading(true)
+
+    try {
+      const response = await axios.post("/api/auth/mfa/verify-login/", {
+        temp_token: tempToken,
+        token: totpToken,
+      })
+      const result = response.data.data || response.data
+      login(result.access, result.refresh, result.user)
+      navigate("/dashboard")
+    } catch (err) {
+      setError(
+        err.response?.data?.message ||
+        "Invalid verification code. Please try again."
+      )
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleBackToLogin = () => {
+    setMfaRequired(false)
+    setTempToken("")
+    setTotpToken("")
+    setError("")
+  }
+
   return (
-    <div className="flex min-h-screen w-full bg-background">
+    <div className="flex min-h-screen w-full bg-background gradient-bg">
       {/* Left Branding Panel */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-primary/10 via-background to-violet-500/10 items-center justify-center">
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-primary/10 via-background to-amber-500/10 items-center justify-center border-r border-border/40">
         <div className="absolute inset-0 opacity-[0.03]"
           style={{
             backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
@@ -47,25 +100,25 @@ export default function Login() {
           }}
         />
         <div className="absolute -top-20 -left-20 h-64 w-64 rounded-full bg-primary/20 blur-[100px]" />
-        <div className="absolute bottom-20 right-20 h-64 w-64 rounded-full bg-violet-500/20 blur-[100px]" />
+        <div className="absolute bottom-20 right-20 h-64 w-64 rounded-full bg-amber-500/20 blur-[100px]" />
 
         <div className="relative z-10 max-w-md px-12 text-center">
-          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-tr from-primary to-violet-400 text-white shadow-premium">
+          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-tr from-primary to-amber-500 text-white shadow-premium hover:rotate-12 transition-transform duration-500">
             <Sparkles className="h-8 w-8" />
           </div>
           <h1 className="text-4xl font-extrabold tracking-tight">
-            NEXOVA <span className="bg-gradient-to-r from-primary to-violet-400 bg-clip-text text-transparent">Real Estate</span>
+            NEXOVA <span className="bg-gradient-to-r from-primary to-amber-500 bg-clip-text text-transparent">Real Estate</span>
           </h1>
           <p className="mt-4 text-muted-foreground leading-relaxed">
             AI Employees built for Property Developers, Brokers, and Agencies.
           </p>
-          <div className="mt-8 flex items-center justify-center gap-6 text-xs text-muted-foreground">
+          <div className="mt-8 flex items-center justify-center gap-6 text-xs text-muted-foreground font-semibold">
             <div className="flex items-center gap-2">
               <Building2 className="h-4 w-4 text-primary" />
               <span>Project Hub</span>
             </div>
             <div className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary" />
+              <Sparkles className="h-4 w-4 text-primary animate-pulse" />
               <span>AI Matching</span>
             </div>
           </div>
@@ -76,19 +129,23 @@ export default function Login() {
       <div className="flex w-full items-center justify-center px-6 py-12 lg:w-1/2">
         <div className="w-full max-w-md">
           <div className="lg:hidden mb-8 text-center">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-tr from-primary to-violet-400 text-white shadow-premium">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-tr from-primary to-amber-500 text-white shadow-premium animate-bounce">
               <Sparkles className="h-6 w-6" />
             </div>
-            <h1 className="text-2xl font-bold">NEXOVA Real Estate</h1>
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">NEXOVA Real Estate</h1>
           </div>
 
-          <div className="rounded-2xl border border-border bg-card p-8 shadow-premium relative overflow-hidden">
+          <div className="rounded-2xl border border-border/80 bg-card/60 p-8 shadow-premium relative overflow-hidden backdrop-blur-md transition-all duration-500 hover:rotate-x-1 hover:rotate-y-1 hover:scale-[1.005] hover:shadow-2xl hover:shadow-primary/5">
             <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-primary/5 blur-2xl" />
-            <div className="absolute -left-10 -bottom-10 h-32 w-32 rounded-full bg-violet-500/5 blur-2xl" />
+            <div className="absolute -left-10 -bottom-10 h-32 w-32 rounded-full bg-amber-500/5 blur-2xl" />
 
             <div className="relative z-10">
-              <h2 className="text-2xl font-bold text-foreground">Welcome back</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Sign in to your workspace</p>
+              <h2 className="text-2xl font-bold text-foreground">
+                {mfaRequired ? "Two-Factor Authentication" : "Welcome back"}
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {mfaRequired ? "Enter your 6-digit authenticator OTP code" : "Sign in to your workspace"}
+              </p>
 
               {error && (
                 <div className="mt-6 rounded-lg bg-destructive/10 p-3 text-sm font-medium text-destructive">
@@ -96,83 +153,130 @@ export default function Login() {
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} className="mt-6 space-y-5">
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-                    Username or Email
-                  </label>
-                  <div className="relative">
-                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">
-                      <User className="h-4 w-4" />
-                    </span>
-                    <input
-                      type="text"
-                      required
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      placeholder="john_doe or john@example.com"
-                      className="block w-full rounded-lg border border-border bg-muted/40 py-2.5 pl-10 pr-4 text-sm text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all"
-                    />
+              {!mfaRequired ? (
+                <form onSubmit={handleSubmit} className="mt-6 space-y-5">
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+                      Username or Email
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">
+                        <User className="h-4 w-4" />
+                      </span>
+                      <input
+                        type="text"
+                        required
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        placeholder="john_doe or john@example.com"
+                        className="block w-full rounded-lg border border-border bg-muted/40 py-2.5 pl-10 pr-4 text-sm text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+                      />
+                    </div>
                   </div>
-                </div>
 
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
-                    Password
-                  </label>
-                  <div className="relative">
-                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">
-                      <Lock className="h-4 w-4" />
-                    </span>
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="block w-full rounded-lg border border-border bg-muted/40 py-2.5 pl-10 pr-10 text-sm text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground"
-                    >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
+                  <div>
+                    <div className="flex justify-between items-center mb-1.5">
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        Password
+                      </label>
+                      <Link to="/forgot-password" className="text-xs font-semibold text-primary hover:underline">
+                        Forgot password?
+                      </Link>
+                    </div>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">
+                        <Lock className="h-4 w-4" />
+                      </span>
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="block w-full rounded-lg border border-border bg-muted/40 py-2.5 pl-10 pr-10 text-sm text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground"
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
-                </div>
 
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-primary to-violet-500 py-2.5 text-sm font-bold text-primary-foreground shadow-premium hover:shadow-premiumDark transition-all disabled:opacity-50"
-                >
-                  {isLoading ? "Signing in..." : "Sign In"}
-                  {!isLoading && <ArrowRight className="h-4 w-4" />}
-                </button>
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-primary to-amber-500 py-2.5 text-sm font-bold text-primary-foreground shadow-premium hover:shadow-premiumDark hover:scale-[1.01] active:scale-[0.99] transition-all duration-300 disabled:opacity-50"
+                  >
+                    {isLoading ? "Signing in..." : "Sign In"}
+                    {!isLoading && <ArrowRight className="h-4 w-4" />}
+                  </button>
 
-                <div className="relative flex py-2 items-center">
-                  <div className="flex-grow border-t border-border"></div>
-                  <span className="flex-shrink mx-4 text-xs text-muted-foreground uppercase">Or</span>
-                  <div className="flex-grow border-t border-border"></div>
-                </div>
+                  <div className="relative flex py-2 items-center">
+                    <div className="flex-grow border-t border-border"></div>
+                    <span className="flex-shrink mx-4 text-xs text-muted-foreground uppercase">Or</span>
+                    <div className="flex-grow border-t border-border"></div>
+                  </div>
 
-                <button
-                  type="button"
-                  onClick={() => window.location.href = "/api/auth/google/login/"}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-card hover:bg-muted/40 py-2.5 text-sm font-bold text-foreground transition-all"
-                >
-                  <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg">
-                    <g transform="matrix(1, 0, 0, 1, 0, 0)">
-                      <path d="M21.35,11.1H12v2.7h5.38c-0.24,1.28 -0.96,2.37 -2.04,3.1v2.6h3.29c1.92,-1.78 3.02,-4.4 3.02,-7.4C21.65,11.83 21.54,11.45 21.35,11.1z" fill="#4285F4" />
-                      <path d="M12,20.5c2.3,0 4.23,-0.76 5.64,-2.07l-3.29,-2.6c-0.91,0.61 -2.08,0.98 -3.35,0.98 -2.57,0 -4.75,-1.74 -5.53,-4.07H2.07v2.69C3.56,18.3 7.49,20.5 12,20.5z" fill="#34A853" />
-                      <path d="M6.47,12.74c-0.2,-0.61 -0.31,-1.26 -0.31,-1.93s0.11,-1.33 0.31,-1.93V6.23H2.07c-0.67,1.34 -1.07,2.85 -1.07,4.58s0.4,3.24 1.07,4.58L6.47,12.74z" fill="#FBBC05" />
-                      <path d="M12,5.19c1.25,0 2.37,0.43 3.25,1.27l2.44,-2.44C16.22,2.6 14.29,1.75 12,1.75c-4.51,0 -8.44,2.2 -9.93,5.17l4.4,3.42C7.25,6.93 9.43,5.19 12,5.19z" fill="#EA4335" />
-                    </g>
-                  </svg>
-                  Continue with Google
-                </button>
-              </form>
+                  <button
+                    type="button"
+                    onClick={() => window.location.href = "/api/auth/google/login/"}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-card/40 hover:bg-muted/30 hover:border-primary/50 py-2.5 text-sm font-bold text-foreground transition-all duration-300 hover:scale-[1.01] active:scale-[0.99] shadow-sm hover:shadow-md backdrop-blur-sm"
+                  >
+                    <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg">
+                      <g transform="matrix(1, 0, 0, 1, 0, 0)">
+                        <path d="M21.35,11.1H12v2.7h5.38c-0.24,1.28 -0.96,2.37 -2.04,3.1v2.6h3.29c1.92,-1.78 3.02,-4.4 3.02,-7.4C21.65,11.83 21.54,11.45 21.35,11.1z" fill="#4285F4" />
+                        <path d="M12,20.5c2.3,0 4.23,-0.76 5.64,-2.07l-3.29,-2.6c-0.91,0.61 -2.08,0.98 -3.35,0.98 -2.57,0 -4.75,-1.74 -5.53,-4.07H2.07v2.69C3.56,18.3 7.49,20.5 12,20.5z" fill="#34A853" />
+                        <path d="M6.47,12.74c-0.2,-0.61 -0.31,-1.26 -0.31,-1.93s0.11,-1.33 0.31,-1.93V6.23H2.07c-0.67,1.34 -1.07,2.85 -1.07,4.58s0.4,3.24 1.07,4.58L6.47,12.74z" fill="#FBBC05" />
+                        <path d="M12,5.19c1.25,0 2.37,0.43 3.25,1.27l2.44,-2.44C16.22,2.6 14.29,1.75 12,1.75c-4.51,0 -8.44,2.2 -9.93,5.17l4.4,3.42C7.25,6.93 9.43,5.19 12,5.19z" fill="#EA4335" />
+                      </g>
+                    </svg>
+                    Continue with Google
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={handleMfaSubmit} className="mt-6 space-y-5">
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5 text-center">
+                      Authenticator Code
+                    </label>
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">
+                        <Key className="h-4 w-4" />
+                      </span>
+                      <input
+                        type="text"
+                        required
+                        maxLength={6}
+                        value={totpToken}
+                        onChange={(e) => setTotpToken(e.target.value.replace(/\D/g, ""))}
+                        placeholder="123456"
+                        className="block w-full rounded-lg border border-border bg-muted/40 py-2.5 pl-10 pr-4 text-sm text-center font-bold tracking-[0.3em] text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isLoading || totpToken.length !== 6}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-primary to-violet-500 py-2.5 text-sm font-bold text-primary-foreground shadow-premium hover:shadow-premiumDark transition-all disabled:opacity-50"
+                  >
+                    {isLoading ? "Verifying..." : "Verify & Login"}
+                    {!isLoading && <ArrowRight className="h-4 w-4" />}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleBackToLogin}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-card hover:bg-muted/40 py-2.5 text-sm font-semibold text-foreground transition-all"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    Back to credentials login
+                  </button>
+                </form>
+              )}
 
               <p className="mt-6 text-center text-xs text-muted-foreground">
                 Don't have an account?{" "}

@@ -210,3 +210,16 @@ class ResendVerificationSerializer(serializers.Serializer):
 
 class ResendOTPSerializer(serializers.Serializer):
     email = serializers.EmailField()
+
+
+class MFAVerifySerializer(serializers.Serializer):
+    token = serializers.CharField(max_length=6, min_length=6)
+
+
+class MFADisableSerializer(serializers.Serializer):
+    token = serializers.CharField(max_length=6, min_length=6)
+
+
+class MFAVerifyLoginSerializer(serializers.Serializer):
+    temp_token = serializers.CharField()
+    token = serializers.CharField(max_length=6, min_length=6)

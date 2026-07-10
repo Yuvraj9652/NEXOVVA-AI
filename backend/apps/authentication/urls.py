@@ -13,6 +13,11 @@ from apps.authentication.views import (
     ResetPasswordView,
     GoogleLoginRedirectView,
     GoogleLoginSuccessView,
+    MFAStatusView,
+    MFASetupView,
+    MFAVerifySetupView,
+    MFADisableView,
+    MFAVerifyLoginView,
 )
 
 urlpatterns = [
@@ -29,5 +34,10 @@ urlpatterns = [
     path("reset-password/", ResetPasswordView.as_view(), name="auth_reset_password"),
     path("google/login/", GoogleLoginRedirectView.as_view(), name="google_login_redirect"),
     path("google/callback/", GoogleLoginSuccessView.as_view(), name="google_login_callback"),
+    path("mfa/status/", MFAStatusView.as_view(), name="mfa_status"),
+    path("mfa/setup/", MFASetupView.as_view(), name="mfa_setup"),
+    path("mfa/verify-setup/", MFAVerifySetupView.as_view(), name="mfa_verify_setup"),
+    path("mfa/disable/", MFADisableView.as_view(), name="mfa_disable"),
+    path("mfa/verify-login/", MFAVerifyLoginView.as_view(), name="mfa_verify_login"),
     path("accounts/", include("allauth.socialaccount.urls")), # allauth social views
 ]

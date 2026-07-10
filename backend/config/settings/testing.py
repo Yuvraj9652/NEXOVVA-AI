@@ -8,3 +8,9 @@ DATABASES = {
         "NAME": BASE_DIR / "test_db.sqlite3",
     }
 }
+
+# Disable django-axes backend in unit tests to avoid request requirements
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend",
+    "allauth.account.auth_backends.AuthenticationBackend",
+]
