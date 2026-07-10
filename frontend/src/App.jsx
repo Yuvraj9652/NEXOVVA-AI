@@ -12,6 +12,9 @@ import Login from "./pages/Login"
 import Register from "./pages/Register"
 import OTPVerify from "./pages/OTPVerify"
 import OAuthCallback from "./pages/OAuthCallback"
+import ForgotPassword from "./pages/ForgotPassword"
+import ResetPassword from "./pages/ResetPassword"
+import Settings from "./pages/Settings"
 import Dashboard from "./pages/Dashboard"
 import CRM from "./pages/CRM"
 import AIChat from "./pages/AIChat"
@@ -62,6 +65,8 @@ function AppContent() {
         <Route path="/register" element={<Register />} />
         <Route path="/verify-otp" element={<OTPVerify />} />
         <Route path="/oauth-callback" element={<OAuthCallback />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
         {/* Protected Dashboard Layout */}
         <Route
@@ -83,6 +88,7 @@ function AppContent() {
                     <Route path="/company-workspace/project-hub/analytics" element={<ProjectAnalytics />} />
                     <Route path="/company-workspace/project-hub/documents" element={<ProjectDocumentManager />} />
                     <Route path="/ai-chat" element={<AIChat />} />
+                    <Route path="/settings" element={<Settings />} />
                     <Route path="*" element={<Navigate to="/dashboard" />} />
                   </Routes>
                 </main>
