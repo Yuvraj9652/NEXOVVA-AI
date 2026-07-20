@@ -74,3 +74,13 @@ class RecommendationResponse(BaseModel):
 class ChatRequest(BaseModel):
     session_id: str
     message: str
+
+
+class AskDocumentRequest(BaseModel):
+    filename: str
+    question: str
+
+
+class AskDocumentResponse(BaseModel):
+    answer: str
+    sources: list
