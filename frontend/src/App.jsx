@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import useAuthStore from "./store/authStore"
 
 // Layouts
-import Sidebar from "./components/layout/Sidebar"
+import TopNavbar from "./components/layout/TopNavbar"
 
 // Pages
 import Home from "./pages/Home"
@@ -73,9 +73,9 @@ function AppContent() {
           path="/*"
           element={
             isAuthenticated ? (
-              <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground gradient-bg">
-                <Sidebar />
-                <main className="flex-1 overflow-y-auto px-6 py-6 lg:px-10">
+                <div className="flex flex-col h-screen w-screen overflow-hidden bg-background text-foreground">
+                <TopNavbar />
+                <main className="flex-1 overflow-y-auto">
                   <Routes>
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/crm" element={<CRM />} />

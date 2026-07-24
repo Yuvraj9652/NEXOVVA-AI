@@ -1,36 +1,16 @@
 amqp==5.3.1
 asgiref==3.11.1
-<<<<<<< HEAD
-billiard==4.2.4
-celery==5.6.3
-=======
 attrs==26.1.0
 billiard==4.2.4
 celery==5.3.6
 certifi==2026.6.17
 cffi==2.1.0
 charset-normalizer==3.4.9
->>>>>>> c546eed529b3e43d2b5fc2176d45491fa20eb92e
 click==8.4.2
 click-didyoumean==0.3.1
 click-plugins==1.1.1.2
 click-repl==0.3.0
 colorama==0.4.6
-<<<<<<< HEAD
-Django==6.0.7
-dotenv==0.9.9
-kombu==5.6.2
-packaging==26.2
-prompt_toolkit==3.0.52
-python-dateutil==2.9.0.post0
-python-dotenv==1.2.2
-six==1.17.0
-sqlparse==0.5.5
-tzdata==2026.2
-tzlocal==5.4.4
-vine==5.1.0
-wcwidth==0.8.2
-=======
 cryptography==49.0.0
 Django==5.1.15
 django-allauth==65.18.0
@@ -67,4 +47,3 @@ urllib3==2.7.0
 vine==5.1.0
 wcwidth==0.8.2
 whitenoise==6.12.0
->>>>>>> c546eed529b3e43d2b5fc2176d45491fa20eb92e
