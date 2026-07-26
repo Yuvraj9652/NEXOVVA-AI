@@ -1,16 +1,44 @@
 import React, { useEffect, useRef } from "react"
 import { FileUp, Folder, File, Trash2, MoreVertical, Clock } from "lucide-react"
-
-const documents = [
-  { name: "Blueprints - Block A", type: "PDF", size: "12 MB", modified: "Today, 10:30 AM" },
-  { name: "Legal Agreements v2", type: "DOCX", size: "4.2 MB", modified: "Yesterday, 4:15 PM" },
-  { name: "Construction Budget", type: "XLSX", size: "1.8 MB", modified: "Jul 1, 2026" },
-  { name: "Interior Specifications", type: "PDF", size: "8.5 MB", modified: "Jun 28, 2026" },
-  { name: "Site Survey Report", type: "PDF", size: "15 MB", modified: "Jun 25, 2026" },
-]
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import api from "../api/client"
 
 export default function ProjectDocumentManager() {
   const documentManagerRef = useRef(null)
+  const fileInputRef = useRef(null)
+  const queryClient = useQueryClient()
+
+  const { data: documents = [] } = useQuery({
+    queryKey: ["documents"],
+    queryFn: () => api.get("/api/documents/").then((res) => res.data.results || res.data || []),
+  })
+
+  const uploadMutation = useMutation({
+    mutationFn: (formData) => api.post("/api/documents/", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      }
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries(["documents"])
+    }
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (id) => api.delete(`/api/documents/${id}/`),
+    onSuccess: () => {
+      queryClient.invalidateQueries(["documents"])
+    }
+  })
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    const formData = new FormData()
+    formData.append("file", file)
+    formData.append("name", file.name.split(".").slice(0, -1).join("."))
+    uploadMutation.mutate(formData)
+  }
 
   useEffect(() => {
     const boxElements = document.querySelectorAll(".dashboard-card")
@@ -81,9 +109,16 @@ export default function ProjectDocumentManager() {
               Organize, upload, and manage project documents securely.
             </p>
           </div>
-          <button className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-teal-500 to-amber-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal-500/20 hover:shadow-premiumDark transition-all duration-300 hover:-translate-y-1 animate-fade-in" style={{ animationDelay: "0.1s" }}>
+          <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-teal-500 to-amber-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal-500/20 hover:shadow-premiumDark transition-all duration-300 hover:-translate-y-1 animate-fade-in" style={{ animationDelay: "0.1s" }}>
             <FileUp className="h-4 w-4" /> Upload Document
           </button>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            style={{ display: "none" }}
+            accept=".pdf,.txt,.doc,.docx"
+          />
         </div>
 
         {/* Documents List */}
@@ -100,27 +135,31 @@ export default function ProjectDocumentManager() {
               <span className="text-xs text-muted-foreground">{documents.length} files</span>
             </div>
             <div className="divide-y divide-border">
-              {documents.map((doc, i) => (
-                <div key={i} className="flex items-center justify-between px-6 py-4 hover:bg-muted/20 transition-all duration-300 group/row">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary transition-all duration-300 group-hover/row:scale-110 group-hover/row:rotate-6">
-                      <File className="h-5 w-5" />
+              {documents.map((doc) => {
+                const docType = doc.file ? doc.file.split(".").pop().toUpperCase() : "PDF"
+                const modifiedStr = new Date(doc.updated_at).toLocaleDateString()
+                return (
+                  <div key={doc.id} className="flex items-center justify-between px-6 py-4 hover:bg-muted/20 transition-all duration-300 group/row">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary transition-all duration-300 group-hover/row:scale-110 group-hover/row:rotate-6">
+                        <File className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">{doc.name}</p>
+                        <span className="text-xs text-muted-foreground">{docType} • 2.5 MB</span>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">{doc.name}</p>
-                      <span className="text-xs text-muted-foreground">{doc.type} • {doc.size}</span>
+                    <div className="flex items-center gap-4">
+                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Clock className="h-3 w-3" /> {modifiedStr}
+                      </span>
+                      <button onClick={() => deleteMutation.mutate(doc.id)} className="rounded-lg p-2 text-muted-foreground hover:text-destructive hover:bg-muted transition-all duration-200 hover:scale-110">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Clock className="h-3 w-3" /> {doc.modified}
-                    </span>
-                    <button className="rounded-lg p-2 text-muted-foreground hover:text-destructive hover:bg-muted transition-all duration-200 hover:scale-110">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         </div>

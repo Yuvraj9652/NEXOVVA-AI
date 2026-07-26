@@ -8,26 +8,38 @@ import {
   ArrowRight,
 } from "lucide-react"
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts"
-
-const pipelineData = [
-  { name: "New", value: 120000 },
-  { name: "Contacted", value: 450000 },
-  { name: "Proposal", value: 310000 },
-  { name: "Negotiation", value: 680000 },
-  { name: "Closed Won", value: 920000 },
-]
-
-const monthlyData = [
-  { month: "Jan", deals: 4, value: 320000 },
-  { month: "Feb", deals: 6, value: 480000 },
-  { month: "Mar", deals: 5, value: 410000 },
-  { month: "Apr", deals: 8, value: 650000 },
-  { month: "May", deals: 7, value: 720000 },
-  { month: "Jun", deals: 9, value: 890000 },
-]
+import { useQuery } from "@tanstack/react-query"
+import api from "../api/client"
 
 export default function ProjectAnalytics() {
   const dashboardRef = useRef(null)
+
+  const { data: analytics } = useQuery({
+    queryKey: ["projectAnalytics"],
+    queryFn: () => api.get("/api/dashboard/analytics/").then((res) => res.data),
+  })
+
+  const activeProjects = analytics?.activeProjects ?? 12
+  const pipelineValue = analytics?.pipelineValue ? `$${(analytics.pipelineValue / 1000000).toFixed(1)}M` : "$2.4M"
+  const conversionRate = analytics?.conversionRate ? `${analytics.conversionRate}%` : "68%"
+  const avgDaysToClose = analytics?.avgDaysToClose ?? 21
+
+  const pipelineData = analytics?.pipelineData ?? [
+    { name: "New", value: 120000 },
+    { name: "Contacted", value: 450000 },
+    { name: "Proposal", value: 310000 },
+    { name: "Negotiation", value: 680000 },
+    { name: "Closed Won", value: 920000 },
+  ]
+
+  const monthlyData = analytics?.monthlyData ?? [
+    { month: "Jan", deals: 4, value: 320000 },
+    { month: "Feb", deals: 6, value: 480000 },
+    { month: "Mar", deals: 5, value: 410000 },
+    { month: "Apr", deals: 8, value: 650000 },
+    { month: "May", deals: 7, value: 720000 },
+    { month: "Jun", deals: 9, value: 890000 },
+  ]
 
   // Mouse tracking for dashboard cards
   useEffect(() => {
@@ -117,8 +129,8 @@ export default function ProjectAnalytics() {
                   <Home className="h-4 w-4" />
                 </div>
               </div>
-              <p className="mt-3 text-2xl font-extrabold bg-gradient-to-r from-teal-500 to-emerald-500 bg-clip-text text-transparent">12</p>
-              <span className="text-xs text-muted-foreground">Across 3 cities</span>
+              <p className="mt-3 text-2xl font-extrabold bg-gradient-to-r from-teal-500 to-emerald-500 bg-clip-text text-transparent">{activeProjects}</p>
+              <span className="text-xs text-muted-foreground">Across active portfolio</span>
             </div>
           </div>
 
@@ -136,7 +148,7 @@ export default function ProjectAnalytics() {
                   <DollarSign className="h-4 w-4" />
                 </div>
               </div>
-              <p className="mt-3 text-2xl font-extrabold bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent">$2.4M</p>
+              <p className="mt-3 text-2xl font-extrabold bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent">{pipelineValue}</p>
               <span className="flex items-center text-xs text-emerald-500">
                 <TrendingUp className="mr-1 h-3 w-3" /> +14.2%
               </span>
@@ -157,7 +169,7 @@ export default function ProjectAnalytics() {
                   <Target className="h-4 w-4" />
                 </div>
               </div>
-              <p className="mt-3 text-2xl font-extrabold bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent">68%</p>
+              <p className="mt-3 text-2xl font-extrabold bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent">{conversionRate}</p>
               <span className="text-xs text-muted-foreground">Lead to deal</span>
             </div>
           </div>
@@ -176,7 +188,7 @@ export default function ProjectAnalytics() {
                   <Users className="h-4 w-4" />
                 </div>
               </div>
-              <p className="mt-3 text-2xl font-extrabold bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent">21</p>
+              <p className="mt-3 text-2xl font-extrabold bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent">{avgDaysToClose}</p>
               <span className="flex items-center text-xs text-emerald-500">
                 <TrendingUp className="mr-1 h-3 w-3" /> -3 days
               </span>

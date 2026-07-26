@@ -1,7 +1,11 @@
-from django.urls import path
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import CommunicationView, BroadcastCampaignViewSet
 
-from .views import CommunicationView
+router = DefaultRouter()
+router.register(r"campaigns", BroadcastCampaignViewSet, basename="campaign")
 
 urlpatterns = [
     path("", CommunicationView.as_view(), name="communications"),
+    path("", include(router.urls)),
 ]

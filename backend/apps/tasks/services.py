@@ -54,6 +54,7 @@ class TasksService:
     @transaction.atomic
     def update_task(organization, user, task_id, **fields):
         task = Task.objects.get(organization=organization, id=task_id)
+        was_completed = task.completed
 
         for field, value in fields.items():
             if field == "assigned_to_id":
@@ -68,6 +69,10 @@ class TasksService:
                 setattr(task, field, value)
 
         task.save()
+
+        if task.completed and not was_completed:
+            from apps.automation.services import EventBus
+            transaction.on_commit(lambda: EventBus.dispatch_event(organization, user, "task_completed", task.id))
 
         ActivityLogService.log_activity(
             organization=organization,

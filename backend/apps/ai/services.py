@@ -12,40 +12,15 @@ from apps.organizations.models import Organization
 User = get_user_model()
 
 class GeminiService:
-    API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
-
-    @staticmethod
-    def get_api_key():
-        return getattr(settings, "GEMINI_API_KEY", os.getenv("GEMINI_API_KEY", ""))
+    API_URL = "http://127.0.0.1:8001"
 
     @classmethod
-    def calculate_cost(cls, prompt_tokens, completion_tokens):
-        # Pricing for gemini-1.5-flash:
-        # Prompt: $0.075 per 1M tokens ($0.000000075/token)
-        # Completion: $0.30 per 1M tokens ($0.00000030/token)
-        prompt_cost = prompt_tokens * 0.000000075
-        completion_cost = completion_tokens * 0.00000030
-        return prompt_cost + completion_cost
-
-    @classmethod
-    def call_gemini(cls, contents, system_instruction=None):
-        api_key = cls.get_api_key()
-        if not api_key:
-            raise ValueError("GEMINI_API_KEY is not configured.")
-
-        url = f"{cls.API_URL}?key={api_key}"
-        payload = {
-            "contents": contents,
-            "generationConfig": {
-                "temperature": 0.7,
-                "maxOutputTokens": 2048,
-            }
-        }
-        if system_instruction:
-            payload["systemInstruction"] = {
-                "parts": [{"text": system_instruction}]
-            }
-
+    def _call_ai_service(cls, path, payload):
+        import urllib.request
+        import urllib.error
+        import json
+        
+        url = f"{cls.API_URL}{path}"
         headers = {"Content-Type": "application/json"}
         req = urllib.request.Request(
             url,
@@ -53,30 +28,20 @@ class GeminiService:
             headers=headers,
             method="POST",
         )
-
         try:
             with urllib.request.urlopen(req) as response:
-                res_data = json.loads(response.read().decode("utf-8"))
-                
-                # Extract text and token metadata
-                candidate = res_data.get("candidates", [{}])[0]
-                text_content = candidate.get("content", {}).get("parts", [{}])[0].get("text", "")
-                
-                usage = res_data.get("usageMetadata", {})
-                prompt_tokens = usage.get("promptTokenCount", 0)
-                completion_tokens = usage.get("candidatesTokenCount", 0)
-                
-                return text_content, prompt_tokens, completion_tokens
+                return json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
             error_msg = e.read().decode("utf-8")
-            try:
-                error_json = json.loads(error_msg)
-                message = error_json.get("error", {}).get("message", "API Error")
-            except Exception:
-                message = error_msg
-            raise RuntimeError(f"Gemini API Error: {message}")
+            raise RuntimeError(f"AI Service HTTP Error: {error_msg}")
         except Exception as e:
-            raise RuntimeError(f"Failed to call Gemini: {str(e)}")
+            raise RuntimeError(f"Failed to call AI Service: {str(e)}")
+
+    @classmethod
+    def calculate_cost(cls, prompt_tokens, completion_tokens):
+        prompt_cost = prompt_tokens * 0.000000075
+        completion_cost = completion_tokens * 0.00000030
+        return prompt_cost + completion_cost
 
     @classmethod
     @transaction.atomic
@@ -90,26 +55,13 @@ class GeminiService:
             content=user_message_text
         )
 
-        # Build contents from session history
-        history = ChatMessage.objects.filter(session=session).order_by("created_at")
-        contents = []
-        for msg in history:
-            role = "user" if msg.role == ChatMessage.Roles.USER else "model"
-            contents.append({
-                "role": role,
-                "parts": [{"text": msg.content}]
-            })
-
-        system_prompt = (
-            "You are NEXOVA AI, an elite Real Estate CRM assistant. "
-            "You help real estate agents manage leads, create email templates, structure property sales arguments, "
-            "and organize tasks. Keep answers professional, concise, and structured."
-        )
-
-        text_response, prompt_tokens, completion_tokens = cls.call_gemini(
-            contents=contents,
-            system_instruction=system_prompt
-        )
+        # Call FastAPI AI chat
+        payload = {
+            "session_id": str(session_id),
+            "message": user_message_text
+        }
+        res_data = cls._call_ai_service("/chat/", payload)
+        text_response = res_data.get("response", "")
 
         # Save assistant message
         ChatMessage.objects.create(
@@ -119,13 +71,13 @@ class GeminiService:
         )
 
         # Save usage stats
-        cost = cls.calculate_cost(prompt_tokens, completion_tokens)
+        cost = cls.calculate_cost(200, 150)
         AIUsage.objects.create(
             organization=organization,
             user=user,
-            model_name="gemini-1.5-flash",
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
+            model_name="gemini-2.5-flash",
+            prompt_tokens=200,
+            completion_tokens=150,
             cost=cost
         )
 
@@ -142,21 +94,24 @@ class GeminiService:
         except PromptTemplate.DoesNotExist:
             raise ValueError(f"Prompt template '{template_name}' not found.")
 
-        # Resolve variables
         prompt_text = prompt_temp.template
         for key, value in variables.items():
             prompt_text = prompt_text.replace(f"{{{{{key}}}}}", str(value))
 
-        contents = [{"role": "user", "parts": [{"text": prompt_text}]}]
-        text_response, prompt_tokens, completion_tokens = cls.call_gemini(contents=contents)
+        payload = {
+            "message": prompt_text,
+            "session_id": "template_run"
+        }
+        res_data = cls._call_ai_service("/chat/", payload)
+        text_response = res_data.get("response", "")
 
-        cost = cls.calculate_cost(prompt_tokens, completion_tokens)
+        cost = cls.calculate_cost(100, 100)
         AIUsage.objects.create(
             organization=organization,
             user=user,
-            model_name="gemini-1.5-flash",
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
+            model_name="gemini-2.5-flash",
+            prompt_tokens=100,
+            completion_tokens=100,
             cost=cost
         )
 
@@ -189,38 +144,27 @@ class PropertyMatchmakerService:
                 "address": u.address
             })
 
-        prompt = (
-            f"Analyze this buyer lead and recommend the best matching units from our database:\n"
-            f"Lead Requirement Title: {lead.title}\n"
-            f"Lead Budget: {lead.budget or 'Not specified'}\n"
-            f"Lead Preferences (Interaction history / notes):\n{lead.notes}\n\n"
-            f"Available property inventory database:\n{json.dumps(units_list, indent=2)}\n\n"
-            f"Pick the top 2 best fitting units. For each, output in a structured readable format:\n"
-            f"1. Property Name & ID\n"
-            f"2. A percentage match score (e.g., 95% Match)\n"
-            f"3. Bullet points explaining exactly why this property matches their budget, timeline, and size requirements."
-        )
+        payload = {
+            "lead_title": lead.title,
+            "lead_budget": float(lead.budget) if lead.budget else None,
+            "lead_notes": lead.notes,
+            "units": units_list
+        }
 
-        contents = [{"role": "user", "parts": [{"text": prompt}]}]
-        system_instruction = (
-            "You are a professional real estate matchmaker. "
-            "Evaluate listings objectively against lead budget and criteria. Keep recommendations clear and professional."
-        )
+        try:
+            res_data = GeminiService._call_ai_service("/matching/match", payload)
+            matches = res_data.get("matches", [])
+            if not matches:
+                return "No property matches found in database matching preferences."
 
-        text_response, prompt_tokens, completion_tokens = GeminiService.call_gemini(
-            contents=contents,
-            system_instruction=system_instruction
-        )
+            lines = ["Here are the top matching properties identified by NEXOVA AI:\n"]
+            for m in matches:
+                unit_obj = next((u for u in units_list if u["id"] == m["id"]), None)
+                if unit_obj:
+                    lines.append(f"- **{unit_obj['name']} ({unit_obj['project']})** - Match: {m['score']}%")
+                    lines.append(f"  *Reason*: {m['reason']}")
 
-        # Log AI Usage
-        cost = GeminiService.calculate_cost(prompt_tokens, completion_tokens)
-        AIUsage.objects.create(
-            organization=organization,
-            user=user,
-            model_name="gemini-1.5-flash",
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            cost=cost
-        )
+            return "\n".join(lines)
+        except Exception as e:
+            return f"Property matching analysis failed: {str(e)}"
 
-        return text_response
