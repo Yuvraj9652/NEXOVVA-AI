@@ -1,14 +1,13 @@
 import React, { useEffect } from "react"
 import { UserCheck, Star, Target, ArrowRight } from "lucide-react"
-
-const matches = [
-  { lead: "Aarav Sharma", project: "Oakwood Residency", score: 94, reason: "Budget & location alignment" },
-  { lead: "Priya Mehta", project: "Skyline Towers", score: 89, reason: "Preference match for high-rise" },
-  { lead: "Rohan Iyer", project: "Green Valley", score: 85, reason: "Family-oriented project affinity" },
-  { lead: "Sneha Kapoor", project: "Riverside Apts", score: 78, reason: "Investment timeline sync" },
-]
+import { useQuery } from "@tanstack/react-query"
+import api from "../api/client"
 
 export default function AICustomerMatching() {
+  const { data: matches = [] } = useQuery({
+    queryKey: ["aiMatching"],
+    queryFn: () => api.get("/api/ai/matching/").then((res) => res.data),
+  })
   useEffect(() => {
     const boxElements = document.querySelectorAll(".dashboard-card")
     

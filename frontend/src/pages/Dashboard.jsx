@@ -27,6 +27,7 @@ import {
   Search,
   DollarSign,
   Home,
+  BarChart3,
 } from "lucide-react"
 import {
   AreaChart,
@@ -51,9 +52,28 @@ export default function Dashboard() {
   ])
   const [chatInput, setChatInput] = useState("")
   const [isChatOpen, setIsChatOpen] = useState(true)
+  const [chatSessionId, setChatSessionId] = useState(null)
   const [workflowRunning, setWorkflowRunning] = useState(false)
   const [workflowMessages, setWorkflowMessages] = useState([])
   const workflowEndRef = useRef(null)
+
+  const ensureChatSession = async () => {
+    if (chatSessionId) return chatSessionId
+    try {
+      const res = await api.post("/api/ai/sessions/", { title: "Dashboard Float Chat" })
+      setChatSessionId(res.data.id)
+      return res.data.id
+    } catch (err) {
+      console.error("Failed to create chat session:", err)
+      return null
+    }
+  }
+
+  useEffect(() => {
+    if (isChatOpen) {
+      ensureChatSession()
+    }
+  }, [isChatOpen])
 
   const sectionRefs = {
     calling: useRef(null),
@@ -63,25 +83,15 @@ export default function Dashboard() {
   }
 
   // Queries
-  const { data: contacts } = useQuery({
-    queryKey: ["contacts"],
-    queryFn: () => api.get("/api/contacts/").then((res) => res.data.results || []),
+  const { data: dashboardData, refetch } = useQuery({
+    queryKey: ["dashboardData"],
+    queryFn: () => api.get("/api/dashboard/").then((res) => res.data),
   })
 
-  const { data: deals } = useQuery({
-    queryKey: ["deals"],
-    queryFn: () => api.get("/api/pipeline/deals/").then((res) => res.data.results || []),
-  })
-
-  const { data: tasks } = useQuery({
-    queryKey: ["tasks"],
-    queryFn: () => api.get("/api/tasks/").then((res) => res.data.results || []),
-  })
-
-  const { data: aiUsage } = useQuery({
-    queryKey: ["aiUsage"],
-    queryFn: () => api.get("/api/ai/analytics/").then((res) => res.data),
-  })
+  const contacts = dashboardData?.contacts || []
+  const deals = dashboardData?.deals || []
+  const tasks = dashboardData?.tasks || []
+  const aiUsage = dashboardData?.aiUsage || {}
 
   // Computed stats
   const totalContacts = contacts?.length || 0
@@ -135,29 +145,37 @@ export default function Dashboard() {
   }, [])
 
   // Chat handler
-  const handleSendMessage = (e) => {
+  const handleSendMessage = async (e) => {
     e.preventDefault()
     if (!chatInput.trim()) return
 
-    const userMsg = { id: Date.now(), role: "user", text: chatInput }
+    const userText = chatInput
+    const userMsg = { id: Date.now(), role: "user", text: userText }
     setChatMessages((prev) => [...prev, userMsg])
     setChatInput("")
 
-    setTimeout(() => {
-      const responses = [
-        "I've analyzed your leads and found 3 high-priority contacts that need immediate follow-up.",
-        "Your pipeline value increased by 12% this week. Would you like me to generate a detailed report?",
-        "I've scheduled 2 site visits for tomorrow and sent confirmation messages to both clients.",
-        "Based on your data, I recommend focusing on the 'Negotiation' stage - you have 5 deals close to closing.",
-        "I've sent follow-up messages to all pending leads. Response rate improved by 8%.",
-      ]
+    try {
+      const sessionId = await ensureChatSession()
+      if (!sessionId) throw new Error("No active session")
+      
+      const res = await api.post(`/api/ai/sessions/${sessionId}/chat/`, { message: userText })
+      const reply = res.data.content || res.data.message || "I've processed your instruction."
+      
       const aiMsg = {
         id: Date.now() + 1,
         role: "assistant",
-        text: responses[Math.floor(Math.random() * responses.length)],
+        text: reply,
       }
       setChatMessages((prev) => [...prev, aiMsg])
-    }, 1000)
+    } catch (err) {
+      console.error("Chat error:", err)
+      const errorMsg = {
+        id: Date.now() + 1,
+        role: "assistant",
+        text: "Sorry, I am having trouble connecting to AI services. Please verify the AI microservice is active.",
+      }
+      setChatMessages((prev) => [...prev, errorMsg])
+    }
   }
 
   const scrollToSection = (sectionId) => {
@@ -182,21 +200,37 @@ export default function Dashboard() {
     { step: 10, sender: "ai", text: "❤️ Retaining you as a valued customer!\n\nNew projects · Market reports\nBirthday wishes · Festival offers\nReferral rewards · Exclusive deals" },
   ]
 
-  const toggleWorkflow = () => {
-    if (workflowRunning) return
-    setWorkflowRunning(true)
-    setWorkflowMessages([])
-    let idx = 0
+ const toggleWorkflow = async () => {
+  if (workflowRunning) return;
+
+  setWorkflowRunning(true);
+  setWorkflowMessages([]);
+
+  try {
+    const res = await api.post("/api/automation/run-workflow/");
+    const realSteps = res.data;
+
+    let idx = 0;
+
     const interval = setInterval(() => {
-      if (idx >= workflowPhaseMessages.length) {
-        clearInterval(interval)
-        setWorkflowRunning(false)
-        return
+      if (idx >= realSteps.length) {
+        clearInterval(interval);
+        setWorkflowRunning(false);
+        refetch();
+        return;
       }
-      setWorkflowMessages((prev) => [...prev, workflowPhaseMessages[idx]])
-      idx++
-    }, 1000)
+
+      const message = realSteps[idx];
+
+      setWorkflowMessages((prev) => [...prev, message]);
+
+      idx++;
+    }, 1000);
+  } catch (error) {
+    console.error("Workflow run failed:", error);
+    setWorkflowRunning(false);
   }
+};
 
   const sections = [
     { id: "calling", label: "AI Calling", icon: Phone },
@@ -421,7 +455,8 @@ export default function Dashboard() {
                       { num: 10, title: "Retain", desc: "Long-term relationship" },
                     ].map((step) => {
 
-                      const currentStep = workflowMessages.length > 0 ? workflowMessages[workflowMessages.length - 1].step : 0
+                      const currentStep = workflowMessages[workflowMessages.length - 1]?.step ?? 0;
+                      // const currentStep = workflowMessages.length > 0 ? workflowMessages[workflowMessages.length - 1].step : 0
                       const isCompleted = workflowRunning && currentStep >= step.num
                       const isActive = workflowRunning && currentStep === step.num
 

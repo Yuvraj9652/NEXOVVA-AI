@@ -128,6 +128,10 @@ class AuthService:
             user_profile.role = UserProfile.Roles.ADMIN
             user_profile.save(update_fields=["organization", "role"])
 
+            # Seed default organization workspace data
+            from apps.common.seed_service import seed_organization_data
+            seed_organization_data(org, user)
+
             # Clean up pending registration
             pending.delete()
 

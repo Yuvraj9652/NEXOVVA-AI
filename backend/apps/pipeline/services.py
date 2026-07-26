@@ -87,6 +87,8 @@ class PipelineService:
                 target_id=deal.id,
                 description=f"Deal '{deal.title}' stage changed from '{old_stage}' to '{deal.stage.name}'.",
             )
+            from apps.automation.services import EventBus
+            transaction.on_commit(lambda: EventBus.dispatch_event(organization, user, "deal_stage_changed", deal.id))
         else:
             ActivityLogService.log_activity(
                 organization=organization,

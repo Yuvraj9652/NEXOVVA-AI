@@ -1,15 +1,34 @@
 import React, { useEffect, useRef } from "react"
 import { Radio, Users, Send, Calendar, Eye, TrendingUp } from "lucide-react"
-
-const campaigns = [
-  { name: "Oakwood Residency Launch", status: "Active", reach: "2.4K", date: "2026-07-01" },
-  { name: "Skyline Towers Update", status: "Scheduled", reach: "1.8K", date: "2026-07-05" },
-  { name: "Green Valley Phase 2", status: "Completed", reach: "3.1K", date: "2026-06-28" },
-  { name: "Riverside Apartments", status: "Draft", reach: "-", date: "2026-07-10" },
-]
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import api from "../api/client"
 
 export default function SmartProjectBroadcasting() {
   const broadcastingRef = useRef(null)
+  const queryClient = useQueryClient()
+
+  const { data: campaigns = [] } = useQuery({
+    queryKey: ["campaigns"],
+    queryFn: () => api.get("/api/communications/campaigns/").then((res) => res.data.results || res.data || []),
+  })
+
+  const newCampaignMutation = useMutation({
+    mutationFn: (name) => api.post("/api/communications/campaigns/", {
+      name,
+      status: "Active",
+      date: new Date().toISOString().split("T")[0]
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries(["campaigns"])
+    }
+  })
+
+  const handleNewBroadcast = () => {
+    const name = prompt("Enter Campaign Name:")
+    if (name) {
+      newCampaignMutation.mutate(name)
+    }
+  }
 
   // Mouse tracking for dashboard cards
   useEffect(() => {
@@ -85,7 +104,7 @@ export default function SmartProjectBroadcasting() {
             </h1>
             <p className="text-muted-foreground text-sm mt-1">AI-powered project announcements distributed across multiple channels.</p>
           </div>
-          <button className="dashboard-card group flex items-center gap-2 rounded-xl border border-border bg-gradient-to-r from-teal-500 to-amber-600 px-4 py-2 text-sm font-semibold text-primary-foreground hover:shadow-premiumDark transition-all duration-300 animate-fade-in" style={{ animationDelay: "0.1s" }}>
+          <button onClick={handleNewBroadcast} className="dashboard-card group flex items-center gap-2 rounded-xl border border-border bg-gradient-to-r from-teal-500 to-amber-600 px-4 py-2 text-sm font-semibold text-primary-foreground hover:shadow-premiumDark transition-all duration-300 animate-fade-in" style={{ animationDelay: "0.1s" }}>
             <Send className="h-4 w-4" /> New Broadcast
           </button>
         </div>

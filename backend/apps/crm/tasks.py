@@ -37,44 +37,29 @@ def enrich_lead_via_ai(lead_id):
     )
 
     try:
-        contents = [{"role": "user", "parts": [{"text": prompt}]}]
-        system_instruction = (
-            "You are a professional real estate analyst. "
-            "You MUST output valid, parsable JSON matching the requested schema. "
-            "Do not include any preambles, postambles, or markdown formatting."
-        )
+        payload = {
+            "customer_name": f"{lead.contact.first_name} {lead.contact.last_name}" if lead.contact else lead.title,
+            "budget": str(lead.budget) if lead.budget else "Not specified",
+            "timeline": notes_text,
+            "interest_level": lead.status,
+            "property_type": lead.title
+        }
 
-        response_text, prompt_tokens, completion_tokens = GeminiService.call_gemini(
-            contents=contents,
-            system_instruction=system_instruction,
-        )
-
-        # Clean markdown formatting if returned
-        cleaned_text = response_text.strip()
-        if cleaned_text.startswith("```"):
-            cleaned_text = cleaned_text.split("\n", 1)[1]
-        if cleaned_text.endswith("```"):
-            cleaned_text = cleaned_text.rsplit("\n", 1)[0]
-        cleaned_text = cleaned_text.strip()
-        if cleaned_text.startswith("json"):
-            cleaned_text = cleaned_text[4:].strip()
-
-        data = json.loads(cleaned_text)
+        data = GeminiService._call_ai_service("/lead-score/", payload)
 
         # Update lead
         lead.score = data.get("score", lead.score)
-        if data.get("budget_estimate") and not lead.budget:
-            lead.budget = data.get("budget_estimate")
 
         # Append structured analysis to notes
-        summary = data.get("needs_summary", "")
+        summary = data.get("reason", "")
+        category = data.get("category", "")
         if summary:
-            lead.notes = f"{lead.notes}\n\n[AI Lead Enrichment Details]:\n{summary}\nScore: {lead.score}/100"
+            lead.notes = f"{lead.notes}\n\n[AI Lead Qualification Details]:\nCategory: {category}\nScore: {lead.score}/100\nReasoning: {summary}"
 
         lead.save()
 
         # Log usage of AI
-        cost = GeminiService.calculate_cost(prompt_tokens, completion_tokens)
+        cost = GeminiService.calculate_cost(200, 100)
         from apps.ai.models import AIUsage
         from django.contrib.auth.models import User
         # Default to first admin in org if no specific user triggers background task
