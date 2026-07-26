@@ -6,28 +6,29 @@ class TenantMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        request.organization = None
-        request.user_profile = None
+        class TenantRequest(request.__class__):
+            @property
+            def organization(self):
+                user = self.user
+                if not hasattr(self, '_resolved_user') or self._resolved_user != user:
+                    self._resolved_user = user
+                    self._resolved_organization = None
+                    self._resolved_user_profile = None
+                    if user and user.is_authenticated:
+                        try:
+                            profile = UserProfile.objects.select_related("organization").get(user=user)
+                            self._resolved_user_profile = profile
+                            self._resolved_organization = profile.organization
+                        except UserProfile.DoesNotExist:
+                            pass
+                return self._resolved_organization
 
-        print("=" * 60)
-        print("TenantMiddleware")
-        print("Authenticated:", request.user.is_authenticated)
-        print("User:", request.user)
+            @property
+            def user_profile(self):
+                # Ensure organization resolution has run for the current user
+                _ = self.organization
+                return getattr(self, '_resolved_user_profile', None)
 
-        if request.user and request.user.is_authenticated:
-            try:
-                profile = UserProfile.objects.select_related("organization").get(
-                    user=request.user
-                )
-
-                print("Profile:", profile)
-                print("Organization:", profile.organization)
-
-                request.user_profile = profile
-                request.organization = profile.organization
-
-            except UserProfile.DoesNotExist:
-                print("UserProfile DOES NOT EXIST")
-
+        request.__class__ = TenantRequest
         response = self.get_response(request)
-        return response
+        return response
