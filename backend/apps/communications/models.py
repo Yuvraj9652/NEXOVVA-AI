@@ -14,6 +14,7 @@ class BroadcastCampaign(TenantModel):
         max_length=20, choices=Statuses.choices, default=Statuses.DRAFT
     )
     reach = models.CharField(max_length=50, blank=True, default="-")
+    content = models.TextField(blank=True, default="")
     date = models.DateField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

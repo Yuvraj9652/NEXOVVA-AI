@@ -111,6 +111,9 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": BASE_DIR / "db.sqlite3",
+        "OPTIONS": {
+            "timeout": 30,
+        }
     }
 }
 
@@ -238,6 +241,8 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
+CELERY_TASK_ALWAYS_EAGER = True
+CELERY_TASK_EAGER_PROPAGATES = True
 
 # Sites & Django-Allauth Configurations
 SITE_ID = 1
@@ -295,3 +300,8 @@ AXES_FAILURE_LIMIT = 5
 AXES_COOLOFF_TIME = timedelta(minutes=15)
 AXES_RESET_ON_SUCCESS = True
 AXES_LOCKOUT_TEMPLATE = None
+
+# AI Service Configuration
+AI_SERVICE_URL = os.getenv("AI_SERVICE_URL", "http://localhost:8001")
+AI_SERVICE_TIMEOUT = float(os.getenv("AI_SERVICE_TIMEOUT", "30.0"))
+

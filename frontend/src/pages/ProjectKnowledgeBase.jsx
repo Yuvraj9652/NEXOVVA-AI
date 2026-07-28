@@ -75,9 +75,10 @@ export default function ProjectKnowledgeBase() {
       setChatHistory((prev) => [...prev, { role: "assistant", text: answer }])
     } catch (err) {
       console.error(err)
+      const errorMsg = err.response?.data?.error || err.response?.data?.detail || "Failed to fetch response from vector search database."
       setChatHistory((prev) => [
         ...prev,
-        { role: "assistant", text: "Failed to fetch response from vector search database." },
+        { role: "assistant", text: `Error: ${errorMsg}` },
       ])
     } finally {
       setLoading(false)

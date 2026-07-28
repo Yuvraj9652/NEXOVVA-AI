@@ -56,6 +56,7 @@ export default function Dashboard() {
   const [workflowRunning, setWorkflowRunning] = useState(false)
   const [workflowMessages, setWorkflowMessages] = useState([])
   const workflowEndRef = useRef(null)
+  const workflowChatRef = useRef(null)
 
   const ensureChatSession = async () => {
     if (chatSessionId) return chatSessionId
@@ -74,6 +75,12 @@ export default function Dashboard() {
       ensureChatSession()
     }
   }, [isChatOpen])
+  useEffect(() => {
+    workflowChatRef.current?.scrollTo({
+      top: workflowChatRef.current.scrollHeight,
+      behavior: "smooth",
+    })
+  }, [workflowMessages])
 
   const sectionRefs = {
     calling: useRef(null),
@@ -437,11 +444,11 @@ export default function Dashboard() {
 
                <div className="mx-8 mb-8 grid lg:grid-cols-5 gap-4 rounded-2xl border border-border bg-background/50" style={{ height: '420px' }}>
                 {/* Left side - descriptions */}
-                <div className="lg:col-span-2 border-r border-border bg-muted/10 flex flex-col">
+                <div className="lg:col-span-2 border-r border-border bg-muted/10 flex flex-col min-h-0">
                   <div className="px-5 py-4 border-b border-border bg-muted/20">
                     <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Workflow Phases</span>
                   </div>
-                  <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+                  <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-3 bg-muted/5 hide-scrollbar">
                     {[
                       { num: 1, title: "Welcome", desc: "AI greets the lead" },
                       { num: 2, title: "Qualify", desc: "Asks qualifying questions" },
@@ -478,14 +485,14 @@ export default function Dashboard() {
                 </div>
 
                 {/* Right side - chat messages */}
-                <div className="lg:col-span-3 flex flex-col">
+                <div className="lg:col-span-3 flex flex-col min-h-0">
                   <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-muted/20">
                     <div className="flex h-2.5 w-2.5 rounded-full bg-red-500/80" />
                     <div className="flex h-2.5 w-2.5 rounded-full bg-yellow-500/80" />
                     <div className="flex h-2.5 w-2.5 rounded-full bg-green-500/80" />
                     <span className="ml-2 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">NEXOVA AI Assistant</span>
                   </div>
-                  <div className="flex-1 p-4 space-y-3 overflow-hidden bg-muted/5">
+                  <div ref={workflowChatRef} className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 bg-muted/5 hide-scrollbar scrollbar-thin scrollbar-thumb-teal-500/40 scrollbar-track-transparent" >
                     {!workflowRunning && workflowMessages.length === 0 && (
                       <div className="flex h-full flex-col items-center justify-center text-center">
                         <MessageSquare className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
@@ -683,7 +690,7 @@ export default function Dashboard() {
           </div>
 
           {/* Chat Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 max-h-[320px]">
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 max-h-[320px] bg-muted/5 hide-scrollbar">
             {chatMessages.map((msg) => (
               <div
                 key={msg.id}
@@ -718,7 +725,7 @@ export default function Dashboard() {
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               placeholder="Ask AI anything..."
-              className="flex-1 rounded-xl border border-border bg-muted/40 px-4 py-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-teal-500 transition-all"
+              className="flex-1 rounded-xl border border-border bg-muted/40 px-4 py-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-teal-500 transition-all bg-muted/5 hide-scrollbar"
             />
             <button
               type="submit"

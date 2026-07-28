@@ -1,19 +1,19 @@
 from django.db import models
-from apps.ai.models import ChatSession, ChatMessage, AIUsage, PromptTemplate
+from apps.ai.models import AIChatSession, AIChatMessage, AIUsage, PromptTemplate
 
 
 class AISelector:
     @staticmethod
     def list_sessions(organization, user):
-        return ChatSession.objects.filter(organization=organization, user=user)
+        return AIChatSession.objects.filter(organization=organization, user=user)
 
     @staticmethod
     def get_session(organization, session_id):
-        return ChatSession.objects.get(organization=organization, id=session_id)
+        return AIChatSession.objects.get(organization=organization, id=session_id)
 
     @staticmethod
     def list_messages(session):
-        return ChatMessage.objects.filter(session=session).order_by("created_at")
+        return AIChatMessage.objects.filter(session=session).order_by("created_at")
 
     @staticmethod
     def list_templates():

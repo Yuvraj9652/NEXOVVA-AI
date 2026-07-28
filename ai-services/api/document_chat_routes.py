@@ -13,6 +13,7 @@ class DocumentChatRequest(BaseModel):
     session_id: str
     filename: str
     question: str
+    organization_id: str = "default"
 
 
 @router.post("/")
@@ -21,5 +22,6 @@ async def document_chat(request: DocumentChatRequest):
     return await chat_with_document(
         request.session_id,
         request.filename,
-        request.question
+        request.question,
+        request.organization_id
     )

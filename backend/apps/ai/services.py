@@ -6,7 +6,7 @@ from django.conf import settings
 from django.db import transaction
 from django.contrib.auth import get_user_model
 
-from apps.ai.models import ChatSession, ChatMessage, AIUsage, PromptTemplate
+from apps.ai.models import AIChatSession, AIChatMessage, AIUsage, PromptTemplate
 from apps.organizations.models import Organization
 
 User = get_user_model()
@@ -46,12 +46,12 @@ class GeminiService:
     @classmethod
     @transaction.atomic
     def generate_chat_response(cls, organization, user, session_id, user_message_text):
-        session = ChatSession.objects.get(organization=organization, id=session_id)
+        session = AIChatSession.objects.get(organization=organization, id=session_id)
         
         # Save user message
-        ChatMessage.objects.create(
+        AIChatMessage.objects.create(
             session=session,
-            role=ChatMessage.Roles.USER,
+            role=AIChatMessage.Roles.USER,
             content=user_message_text
         )
 
@@ -64,9 +64,9 @@ class GeminiService:
         text_response = res_data.get("response", "")
 
         # Save assistant message
-        ChatMessage.objects.create(
+        AIChatMessage.objects.create(
             session=session,
-            role=ChatMessage.Roles.ASSISTANT,
+            role=AIChatMessage.Roles.ASSISTANT,
             content=text_response
         )
 
