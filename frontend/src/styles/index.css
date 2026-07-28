@@ -96,6 +96,24 @@
   transform: translateZ(0);
 }
 
+.hide-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.hide-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(20, 184, 166, 0.4);
+  border-radius: 999px;
+}
+
+.hide-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.hide-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(20,184,166,.4) transparent;
+}
+
 @keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }

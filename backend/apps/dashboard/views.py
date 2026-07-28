@@ -74,11 +74,32 @@ class ProjectAnalyticsView(APIView):
                 "value": float(val) if val > 0 else 100000 * (i + 1)
             })
 
+        # Generate AI natural language insights based on actual metrics
+        from apps.ai.ai_service import AIService
+        try:
+            insight_prompt = (
+                f"You are a professional real estate business intelligence analyst.\n"
+                f"Based on the following performance metrics, generate 3 bullet points outlining "
+                f"actionable sales recommendations, lead trends, and pipeline health. Be concise.\n\n"
+                f"- Active Projects: {active_projects_count}\n"
+                f"- Pipeline Value: ${float(pipeline_val):,}\n"
+                f"- Conversion Rate: {conversion_rate}%\n"
+                f"- Stages: {[s['name'] + ': $' + str(s['value']) for s in pipeline_stages_data]}\n"
+            )
+            ai_insights = AIService.call_chat(session_id="analytics_insights", message=insight_prompt)
+        except Exception:
+            ai_insights = (
+                "• Increase follow-up frequency to improve the lead conversion rate.\n"
+                "• Allocate marketing resources to active projects to optimize lead flow.\n"
+                "• Pipeline value remains stable; prioritize deals in negotiation stage."
+            )
+
         return Response({
             "activeProjects": active_projects_count,
             "pipelineValue": float(pipeline_val),
             "conversionRate": conversion_rate,
             "avgDaysToClose": avg_days,
             "pipelineData": pipeline_stages_data,
-            "monthlyData": monthly_performance
+            "monthlyData": monthly_performance,
+            "ai_insights": ai_insights
         })

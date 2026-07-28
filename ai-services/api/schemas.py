@@ -79,6 +79,7 @@ class ChatRequest(BaseModel):
 class AskDocumentRequest(BaseModel):
     filename: str
     question: str
+    organization_id: str = "default"
 
 
 class AskDocumentResponse(BaseModel):

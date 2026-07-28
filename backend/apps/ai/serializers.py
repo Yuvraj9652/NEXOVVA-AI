@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from apps.ai.models import PromptTemplate, ChatSession, ChatMessage, AIUsage
+from apps.ai.models import PromptTemplate, AIChatSession, AIChatMessage, AIUsage
 
 
 class PromptTemplateSerializer(serializers.ModelSerializer):
@@ -8,22 +8,26 @@ class PromptTemplateSerializer(serializers.ModelSerializer):
         fields = ["id", "name", "template", "purpose"]
 
 
-class ChatSessionSerializer(serializers.ModelSerializer):
+class AIChatSessionSerializer(serializers.ModelSerializer):
     class Meta:
-        model = ChatSession
-        fields = ["id", "title", "created_at", "updated_at"]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        model = AIChatSession
+        fields = ["id", "title", "status", "created_at", "updated_at"]
+        read_only_fields = ["id", "status", "created_at", "updated_at"]
 
 
-class ChatMessageSerializer(serializers.ModelSerializer):
+class AIChatMessageSerializer(serializers.ModelSerializer):
     class Meta:
-        model = ChatMessage
-        fields = ["id", "role", "content", "created_at"]
-        read_only_fields = ["id", "created_at"]
+        model = AIChatMessage
+        fields = ["role", "content", "created_at"]
+        read_only_fields = ["created_at"]
 
 
-class ChatMessageRequestSerializer(serializers.Serializer):
-    message = serializers.CharField()
+class ChatRequestSerializer(serializers.Serializer):
+    message = serializers.CharField(required=True)
+
+
+class ChatResponseSerializer(serializers.Serializer):
+    content = serializers.CharField(required=True)
 
 
 class AIUsageSerializer(serializers.ModelSerializer):
@@ -41,3 +45,11 @@ class AIUsageSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = ["id", "username", "created_at"]
+
+
+# Aliases to match requirements exactly
+AIChatSession = AIChatSessionSerializer
+AIChatMessage = AIChatMessageSerializer
+ChatRequest = ChatRequestSerializer
+ChatResponse = ChatResponseSerializer
+

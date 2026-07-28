@@ -14,9 +14,14 @@ class PromptTemplate(models.Model):
         return self.name
 
 
-class ChatSession(TenantModel):
+import uuid
+
+
+class AIChatSession(TenantModel):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     title = models.CharField(max_length=255, default="New Conversation")
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="chat_sessions")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="ai_chat_sessions")
+    status = models.CharField(max_length=20, default="ACTIVE")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -27,14 +32,15 @@ class ChatSession(TenantModel):
         return self.title
 
 
-class ChatMessage(models.Model):
+class AIChatMessage(models.Model):
     class Roles(models.TextChoices):
         USER = "user", "User"
         ASSISTANT = "assistant", "Assistant"
 
-    session = models.ForeignKey(ChatSession, on_delete=models.CASCADE, related_name="messages")
-    role = models.CharField(max_length=10, choices=Roles.choices)
+    session = models.ForeignKey(AIChatSession, on_delete=models.CASCADE, related_name="messages")
+    role = models.CharField(max_length=20, choices=Roles.choices)
     content = models.TextField()
+    metadata = models.JSONField(blank=True, null=True, default=dict)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -42,6 +48,7 @@ class ChatMessage(models.Model):
 
     def __str__(self):
         return f"{self.role}: {self.content[:50]}"
+
 
 
 class AIUsage(TenantModel):
