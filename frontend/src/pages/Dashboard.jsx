@@ -71,11 +71,6 @@ export default function Dashboard() {
   }
 
   useEffect(() => {
-    if (isChatOpen) {
-      ensureChatSession()
-    }
-  }, [isChatOpen])
-  useEffect(() => {
     workflowChatRef.current?.scrollTo({
       top: workflowChatRef.current.scrollHeight,
       behavior: "smooth",

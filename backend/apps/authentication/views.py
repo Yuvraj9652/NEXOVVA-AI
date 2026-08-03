@@ -428,7 +428,8 @@ class GoogleLoginRedirectView(View):
             auth_params,
         )
         return redirect(redirect_url)
-
+import time
+import jwt
 
 class GoogleLoginSuccessView(View):
     def get(self, request, *args, **kwargs):
@@ -457,6 +458,21 @@ class GoogleLoginSuccessView(View):
         try:
             access_token_data = client.get_access_token(code)
             token = adapter.parse_token(access_token_data)
+            print("SERVER UNIX TIME:", int(time.time()))
+
+            if "id_token" in access_token_data:
+                decoded = jwt.decode(
+                    access_token_data["id_token"],
+                    options={
+                        "verify_signature": False,
+                        "verify_exp": False,
+                        "verify_iat": False,
+                    },
+                )
+
+                print("GOOGLE TOKEN iat:", decoded.get("iat"))
+                print("GOOGLE TOKEN exp:", decoded.get("exp"))
+                print("IAT DIFFERENCE:", decoded.get("iat", 0) - int(time.time()))
             if app.pk:
                 token.app = app
             social_login = adapter.complete_login(request, app, token, response=access_token_data)
