@@ -135,7 +135,10 @@ export default function AIChat() {
   }, [sessions, activeSession])
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden bg-background text-foreground" ref={chatRef}>
+    <div
+  className="relative h-[calc(100vh-64px)] w-full overflow-hidden bg-background text-foreground"
+  ref={chatRef}
+>
       {/* Static Background Image */}
       <div className="absolute inset-0 z-0">
         <img
@@ -230,7 +233,7 @@ export default function AIChat() {
               </div>
               <div>
                 <h3 className="text-sm font-extrabold text-foreground">Gemini Real Estate Assistant</h3>
-                <p className="text-[10px] text-muted-foreground">Active model: gemini-1.5-flash</p>
+                <p className="text-[10px] text-muted-foreground">Active model: gemini-2.5-flash</p>
               </div>
             </div>
             <div className="flex items-center gap-1.5 rounded-full bg-violet-500/10 px-3 py-1 text-xs text-violet-500 font-bold border border-violet-500/20">
