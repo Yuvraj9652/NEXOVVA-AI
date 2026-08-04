@@ -5,8 +5,10 @@ from apps.accounts.models import Profile, UserProfile
 
 
 @receiver(post_save, sender=settings.AUTH_USER_MODEL)
-def create_user_profiles(sender, instance, created, **kwargs):
+def create_user_profiles(sender, instance, created,raw=False, **kwargs):
     """Automatically create Profile and UserProfile when a User is created."""
+    if raw:
+        return
     if created:
         Profile.objects.get_or_create(user=instance)
         # Create a default UserProfile if not already present
@@ -14,8 +16,10 @@ def create_user_profiles(sender, instance, created, **kwargs):
 
 
 @receiver(post_save, sender=settings.AUTH_USER_MODEL)
-def save_user_profiles(sender, instance, **kwargs):
+def save_user_profiles(sender, instance,raw=False, **kwargs):
     """Save the profiles when the User is saved."""
+    if raw:
+        return
     if hasattr(instance, "profile"):
         instance.profile.save()
     if hasattr(instance, "userprofile"):
