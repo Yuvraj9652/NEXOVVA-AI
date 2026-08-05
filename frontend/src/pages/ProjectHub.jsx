@@ -3,9 +3,8 @@ import {
   FileText,
   Radio,
   UserCheck,
-  BarChart3,
-  FolderOpen,
   ArrowRight,
+  ChevronLeft,
 } from "lucide-react"
 
 const hubModules = [
@@ -26,18 +25,6 @@ const hubModules = [
     desc: "Intelligent lead-to-project matching engine.",
     path: "/company-workspace/project-hub/ai-matching",
     icon: UserCheck,
-  },
-  {
-    title: "Project Analytics",
-    desc: "Comprehensive project performance metrics.",
-    path: "/company-workspace/project-hub/analytics",
-    icon: BarChart3,
-  },
-  {
-    title: "Project Document Manager",
-    desc: "Organize and manage project files and documents.",
-    path: "/company-workspace/project-hub/documents",
-    icon: FolderOpen,
   },
 ]
 
@@ -108,11 +95,20 @@ export default function ProjectHub() {
       {/* Main Content */}
       <div className="relative z-10 mx-auto max-w-7xl px-6 pt-8 pb-16 lg:px-12 space-y-8">
         {/* Welcome Header */}
-        <div className="animate-fade-in">
-          <h1 className="text-4xl font-extrabold tracking-tight">
-            <span className="bg-gradient-to-r from-teal-500 to-amber-500 bg-clip-text text-transparent">Project Hub</span>
-          </h1>
-          <p className="text-muted-foreground text-sm mt-2">Manage and broadcast your real estate projects with AI-powered tools.</p>
+        <div className="flex items-center gap-4 animate-fade-in">
+          <a
+            href="/company-workspace"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card/60 text-muted-foreground hover:text-foreground hover:bg-muted/40 hover:border-teal-500/30 transition-all duration-300 shadow-sm shrink-0"
+            title="Back to Company Workspace"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </a>
+          <div>
+            <h1 className="text-4xl font-extrabold tracking-tight">
+              <span className="bg-gradient-to-r from-teal-500 to-amber-500 bg-clip-text text-transparent">Project Hub</span>
+            </h1>
+            <p className="text-muted-foreground text-sm mt-1">Manage and broadcast your real estate projects with AI-powered tools.</p>
+          </div>
         </div>
 
         {/* Modules Grid */}

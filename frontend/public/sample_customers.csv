@@ -1,0 +1,5 @@
+first_name,last_name,email,phone,city,lead_status,priority,property_type,budget_min,budget_max,company,occupation,purpose
+Sarinah,Shah,sarinah.shah@example.com,8980133121,Gurugram,NEW,HIGH,APARTMENT,15000000,35000000,Tech Corp,Product Manager,SELF_USE
+Yuvraj,Labana,yuvraj.labana@example.com,7878596585,Bengaluru,NEW,HIGH,VILLA,25000000,60000000,Labana Group,Entrepreneur,INVESTMENT
+Neel,Patel,neel.patel@example.com,8734071590,Mumbai,NEW,MEDIUM,PENTHOUSE,30000000,80000000,Capital Ventures,Investment Banker,SELF_USE
+Ananya,Sharma,ananya.s@example.com,9820112233,Pune,HOT,HIGH,COMMERCIAL,10000000,45000000,Apex Retail,Business Owner,INVESTMENT

@@ -74,6 +74,22 @@ const STATUS_COLORS = {
   ARCHIVED: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
 }
 
+const STATUS_BORDER_COLORS = {
+  PAST: "border-l-slate-500",
+  ONGOING: "border-l-teal-500",
+  UPCOMING: "border-l-amber-500",
+  DRAFT: "border-l-muted-foreground",
+  ARCHIVED: "border-l-red-500",
+}
+
+const STATUS_DOT_COLORS = {
+  PAST: "bg-slate-500",
+  ONGOING: "bg-teal-500",
+  UPCOMING: "bg-amber-500",
+  DRAFT: "bg-muted-foreground",
+  ARCHIVED: "bg-red-500",
+}
+
 const STATUS_ICONS = {
   PAST: Clock,
   ONGOING: Activity,
@@ -111,9 +127,15 @@ function truncate(str, len = 80) {
   return str.length > len ? str.slice(0, len) + "..." : str
 }
 
+function getStatusLabel(status) {
+  const labels = { ONGOING: "Ongoing", PAST: "Past", UPCOMING: "Upcoming", DRAFT: "Draft", ARCHIVED: "Archived" }
+  return labels[status] || status
+}
+
 export default function ProjectKnowledgeBase() {
   const queryClient = useQueryClient()
   const kbRef = useRef(null)
+  const detailRef = useRef(null)
 
   const [view, setView] = useState("list")
   const [selectedProject, setSelectedProject] = useState(null)
@@ -175,7 +197,7 @@ export default function ProjectKnowledgeBase() {
     }
   }, [view, selectedProject])
 
-  const { data: projects = [], isLoading: projectsLoading } = useQuery({
+  const { data: projects = [], isLoading: projectsLoading, refetch: refetchProjects } = useQuery({
     queryKey: ["knowledgeBaseProjects", searchQuery, statusFilter, typeFilter, sortBy],
     queryFn: () => {
       const params = new URLSearchParams()
@@ -185,12 +207,28 @@ export default function ProjectKnowledgeBase() {
       return api.get("/api/knowledge-base/", { params }).then((res) => res.data.results || res.data)
     },
     placeholderData: (previousData) => previousData,
+    refetchInterval: 30000,
+  })
+
+  const { data: allProjects = [] } = useQuery({
+    queryKey: ["allKnowledgeBaseProjects"],
+    queryFn: () => api.get("/api/knowledge-base/").then((res) => res.data.results || res.data),
+    refetchInterval: 30000,
   })
 
   const { data: stats = {} } = useQuery({
     queryKey: ["knowledgeBaseStats"],
     queryFn: () => api.get("/api/knowledge-base/stats/").then((res) => res.data),
   })
+
+  const dynamicStats = {
+    total: stats.total ?? allProjects.length ?? projects.length,
+    ongoing: stats.ongoing ?? allProjects.filter((p) => p.status === "ONGOING").length,
+    upcoming: stats.upcoming ?? allProjects.filter((p) => p.status === "UPCOMING").length,
+    past: stats.past ?? allProjects.filter((p) => p.status === "PAST").length,
+    draft: stats.draft ?? allProjects.filter((p) => p.status === "DRAFT").length,
+    archived: stats.archived ?? allProjects.filter((p) => p.status === "ARCHIVED").length,
+  }
 
   const { data: trashProjects = [] } = useQuery({
     queryKey: ["knowledgeBaseTrash"],
@@ -207,11 +245,17 @@ export default function ProjectKnowledgeBase() {
     enabled: !!selectedProject && showChatModal,
   })
 
+  const invalidateAllProjectQueries = () => {
+    queryClient.invalidateQueries(["knowledgeBaseProjects"])
+    queryClient.invalidateQueries(["allKnowledgeBaseProjects"])
+    queryClient.invalidateQueries(["knowledgeBaseStats"])
+    queryClient.invalidateQueries(["knowledgeBaseTrash"])
+  }
+
   const createProjectMutation = useMutation({
     mutationFn: (data) => api.post("/api/knowledge-base/", data),
     onSuccess: () => {
-      queryClient.invalidateQueries(["knowledgeBaseProjects"])
-      queryClient.invalidateQueries(["knowledgeBaseStats"])
+      invalidateAllProjectQueries()
       setShowAddModal(false)
       setAddStep(1)
       setFormData({})
@@ -223,8 +267,7 @@ export default function ProjectKnowledgeBase() {
   const updateProjectMutation = useMutation({
     mutationFn: ({ id, data }) => api.patch(`/api/knowledge-base/${id}/`, data),
     onSuccess: () => {
-      queryClient.invalidateQueries(["knowledgeBaseProjects"])
-      queryClient.invalidateQueries(["knowledgeBaseStats"])
+      invalidateAllProjectQueries()
       setShowEditModal(false)
       setEditStep(1)
       setEditData({})
@@ -236,8 +279,7 @@ export default function ProjectKnowledgeBase() {
   const deleteProjectMutation = useMutation({
     mutationFn: (id) => api.delete(`/api/knowledge-base/${id}/`),
     onSuccess: () => {
-      queryClient.invalidateQueries(["knowledgeBaseProjects"])
-      queryClient.invalidateQueries(["knowledgeBaseStats"])
+      invalidateAllProjectQueries()
       showToast("Project archived", "success")
     },
     onError: (err) => showToast(err.response?.data?.detail || "Failed to archive project", "error"),
@@ -246,9 +288,7 @@ export default function ProjectKnowledgeBase() {
   const restoreProjectMutation = useMutation({
     mutationFn: (id) => api.post(`/api/knowledge-base/${id}/restore/`),
     onSuccess: () => {
-      queryClient.invalidateQueries(["knowledgeBaseProjects"])
-      queryClient.invalidateQueries(["knowledgeBaseTrash"])
-      queryClient.invalidateQueries(["knowledgeBaseStats"])
+      invalidateAllProjectQueries()
       showToast("Project restored", "success")
     },
     onError: (err) => showToast(err.response?.data?.detail || "Failed to restore project", "error"),
@@ -257,8 +297,7 @@ export default function ProjectKnowledgeBase() {
   const duplicateProjectMutation = useMutation({
     mutationFn: (id) => api.post(`/api/knowledge-base/${id}/duplicate/`),
     onSuccess: () => {
-      queryClient.invalidateQueries(["knowledgeBaseProjects"])
-      queryClient.invalidateQueries(["knowledgeBaseStats"])
+      invalidateAllProjectQueries()
       showToast("Project duplicated", "success")
     },
     onError: (err) => showToast(err.response?.data?.detail || "Failed to duplicate project", "error"),
@@ -269,8 +308,7 @@ export default function ProjectKnowledgeBase() {
       headers: { "Content-Type": "multipart/form-data" },
     }),
     onSuccess: (res) => {
-      queryClient.invalidateQueries(["knowledgeBaseProjects"])
-      queryClient.invalidateQueries(["knowledgeBaseStats"])
+      invalidateAllProjectQueries()
       setBulkImportResults(res.data)
       showToast(`Imported ${res.data.imported?.length || 0} projects`, "success")
     },
@@ -294,12 +332,69 @@ export default function ProjectKnowledgeBase() {
     onError: (err) => showToast(err.response?.data?.detail || "Chat failed", "error"),
   })
 
+  const cleanPayload = (data) => {
+    if (!data) return {}
+    const {
+      media,
+      documents,
+      amenities,
+      tags,
+      faqs,
+      highlights,
+      analytics,
+      versions,
+      created_by,
+      created_at,
+      updated_at,
+      chat_sessions,
+      processing_jobs,
+      id,
+      ...rest
+    } = data
+
+    const payload = { ...rest }
+
+    if (payload.starting_price === "" || payload.starting_price === undefined || payload.starting_price === null) {
+      payload.starting_price = null
+    } else {
+      payload.starting_price = Number(payload.starting_price)
+    }
+
+    if (payload.max_price === "" || payload.max_price === undefined || payload.max_price === null) {
+      payload.max_price = null
+    } else {
+      payload.max_price = Number(payload.max_price)
+    }
+
+    if (!payload.status) payload.status = "DRAFT"
+    return payload
+  }
+
+  const handleSelectProject = (project) => {
+    setSelectedProject(project)
+    setDetailTab("overview")
+    setView("detail")
+    setTimeout(() => {
+      detailRef.current?.scrollIntoView({ behavior: "smooth" })
+    }, 100)
+  }
+
   const handleAddProject = () => {
-    createProjectMutation.mutate(formData)
+    if (!formData.name || !formData.name.trim()) {
+      showToast("Project Name is required", "error")
+      return
+    }
+    const payload = cleanPayload(formData)
+    createProjectMutation.mutate(payload)
   }
 
   const handleEditProject = () => {
-    updateProjectMutation.mutate({ id: editData.id, data: editData })
+    if (!editData.name || !editData.name.trim()) {
+      showToast("Project Name is required", "error")
+      return
+    }
+    const payload = cleanPayload(editData)
+    updateProjectMutation.mutate({ id: editData.id, data: payload })
   }
 
   const handleBulkImport = () => {
@@ -401,15 +496,31 @@ export default function ProjectKnowledgeBase() {
 
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between animate-fade-in">
-          <div>
-            <h1 className="text-4xl font-extrabold tracking-tight text-foreground">
-              <span className="bg-gradient-to-r from-teal-500 to-amber-500 bg-clip-text text-transparent">Project Knowledge Base</span>
-            </h1>
-            <p className="text-muted-foreground text-sm mt-2">
-              Centralized repository for project documentation, AI processing, and analytics.
-            </p>
+          <div className="flex items-center gap-4">
+            <a
+              href="/company-workspace/project-hub"
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card/60 text-muted-foreground hover:text-foreground hover:bg-muted/40 hover:border-teal-500/30 transition-all duration-300 shadow-sm shrink-0"
+              title="Back to Project Hub"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </a>
+            <div>
+              <h1 className="text-4xl font-extrabold tracking-tight text-foreground">
+                <span className="bg-gradient-to-r from-teal-500 to-amber-500 bg-clip-text text-transparent">Project Knowledge Base</span>
+              </h1>
+              <p className="text-muted-foreground text-sm mt-1">
+                Centralized repository for project documentation, AI processing, and analytics.
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-3">
+            <a
+              href="/sample_projects.csv"
+              download="sample_projects.csv"
+              className="flex items-center gap-2 rounded-xl border border-teal-500/30 bg-teal-500/10 px-4 py-2.5 text-sm font-semibold text-teal-600 dark:text-teal-400 hover:bg-teal-500/20 transition-all duration-300 hover:-translate-y-1"
+            >
+              <Download className="h-4 w-4" /> Sample CSV
+            </a>
             <button
               onClick={() => setShowBulkImportModal(true)}
               className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-teal-500 to-amber-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal-500/20 hover:shadow-premiumDark transition-all duration-300 hover:-translate-y-1"
@@ -425,15 +536,15 @@ export default function ProjectKnowledgeBase() {
           </div>
         </div>
 
-        {/* Stats Cards */}
+        {/* Dynamic Stats Cards */}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-6 animate-fade-in" style={{ animationDelay: "0.1s" }}>
           {[
-            { label: "Total Projects", value: stats.total ?? projects.length, icon: FolderOpen, color: "teal" },
-            { label: "Ongoing", value: stats.ongoing ?? 0, icon: Activity, color: "emerald" },
-            { label: "Upcoming", value: stats.upcoming ?? 0, icon: Star, color: "amber" },
-            { label: "Past", value: stats.past ?? 0, icon: Clock, color: "slate" },
-            { label: "Drafts", value: stats.draft ?? 0, icon: FileText, color: "muted" },
-            { label: "Archived", value: stats.archived ?? 0, icon: Archive, color: "red" },
+            { label: "Total Projects", value: dynamicStats.total, icon: FolderOpen, color: "teal", statusKey: "" },
+            { label: "Ongoing", value: dynamicStats.ongoing, icon: Activity, color: "emerald", statusKey: "ONGOING" },
+            { label: "Upcoming", value: dynamicStats.upcoming, icon: Star, color: "amber", statusKey: "UPCOMING" },
+            { label: "Past", value: dynamicStats.past, icon: Clock, color: "slate", statusKey: "PAST" },
+            { label: "Drafts", value: dynamicStats.draft, icon: FileText, color: "muted", statusKey: "DRAFT" },
+            { label: "Archived", value: dynamicStats.archived, icon: Archive, color: "red", statusKey: "ARCHIVED" },
           ].map((stat, i) => {
             const Icon = stat.icon
             const colorMap = {
@@ -444,16 +555,35 @@ export default function ProjectKnowledgeBase() {
               muted: "bg-muted text-muted-foreground",
               red: "bg-red-500/10 text-red-500",
             }
+            const isActive = stat.statusKey === "ARCHIVED" ? showTrash : (statusFilter === stat.statusKey && !showTrash)
+
+            const handleCardClick = () => {
+              if (stat.statusKey === "ARCHIVED") {
+                setShowTrash(true)
+                setStatusFilter("")
+              } else {
+                setShowTrash(false)
+                setStatusFilter(stat.statusKey)
+              }
+            }
+
             return (
               <div
                 key={stat.label}
-                className="dashboard-card group relative rounded-2xl border border-border bg-card/60 p-5 backdrop-blur-md transition-all duration-300 hover:-translate-y-1 hover:shadow-premiumDark animate-fade-in overflow-hidden"
+                onClick={handleCardClick}
+                className={`dashboard-card group relative rounded-2xl border bg-card/60 p-5 backdrop-blur-md transition-all duration-300 hover:-translate-y-1 hover:shadow-premiumDark animate-fade-in overflow-hidden cursor-pointer ${
+                  isActive
+                    ? "border-teal-500 ring-2 ring-teal-500/40 bg-teal-500/10 shadow-lg scale-[1.02]"
+                    : "border-border hover:border-teal-500/40"
+                }`}
                 style={{ animationDelay: `${0.1 + i * 0.05}s` }}
               >
                 <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-teal-500/0 via-teal-500/10 to-teal-500/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
                 <div className="relative z-10">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{stat.label}</span>
+                    <span className={`text-xs font-bold uppercase tracking-wider ${isActive ? "text-teal-500 font-extrabold" : "text-muted-foreground"}`}>
+                      {stat.label}
+                    </span>
                     <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${colorMap[stat.color]} transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6`}>
                       <Icon className="h-4 w-4" />
                     </div>
@@ -482,40 +612,47 @@ export default function ProjectKnowledgeBase() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="rounded-xl border border-border bg-muted/30 px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 transition-all"
+                className="rounded-xl border border-border bg-card text-foreground px-3.5 py-2.5 text-sm font-medium shadow-sm hover:border-teal-500/50 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 transition-all cursor-pointer"
               >
-                <option value="">All Statuses</option>
-                <option value="DRAFT">Draft</option>
-                <option value="ONGOING">Ongoing</option>
-                <option value="UPCOMING">Upcoming</option>
-                <option value="PAST">Past</option>
-                <option value="ARCHIVED">Archived</option>
+                <option value="" className="bg-background text-foreground dark:bg-slate-900 dark:text-slate-100">All Statuses</option>
+                <option value="DRAFT" className="bg-background text-foreground dark:bg-slate-900 dark:text-slate-100">Draft</option>
+                <option value="ONGOING" className="bg-background text-foreground dark:bg-slate-900 dark:text-slate-100">Ongoing</option>
+                <option value="UPCOMING" className="bg-background text-foreground dark:bg-slate-900 dark:text-slate-100">Upcoming</option>
+                <option value="PAST" className="bg-background text-foreground dark:bg-slate-900 dark:text-slate-100">Past</option>
+                <option value="ARCHIVED" className="bg-background text-foreground dark:bg-slate-900 dark:text-slate-100">Archived</option>
               </select>
               <select
                 value={typeFilter}
                 onChange={(e) => setTypeFilter(e.target.value)}
-                className="rounded-xl border border-border bg-muted/30 px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 transition-all"
+                className="rounded-xl border border-border bg-card text-foreground px-3.5 py-2.5 text-sm font-medium shadow-sm hover:border-teal-500/50 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 transition-all cursor-pointer"
               >
-                <option value="">All Types</option>
-                <option value="APARTMENT">Apartment</option>
-                <option value="VILLA">Villa</option>
-                <option value="PLOT">Plot</option>
-                <option value="COMMERCIAL">Commercial</option>
-                <option value="PENTHOUSE">Penthouse</option>
-                <option value="TOWNHOUSE">Townhouse</option>
+                <option value="" className="bg-background text-foreground dark:bg-slate-900 dark:text-slate-100">All Types</option>
+                <option value="APARTMENT" className="bg-background text-foreground dark:bg-slate-900 dark:text-slate-100">Apartment</option>
+                <option value="VILLA" className="bg-background text-foreground dark:bg-slate-900 dark:text-slate-100">Villa</option>
+                <option value="PLOT" className="bg-background text-foreground dark:bg-slate-900 dark:text-slate-100">Plot</option>
+                <option value="COMMERCIAL" className="bg-background text-foreground dark:bg-slate-900 dark:text-slate-100">Commercial</option>
+                <option value="PENTHOUSE" className="bg-background text-foreground dark:bg-slate-900 dark:text-slate-100">Penthouse</option>
+                <option value="TOWNHOUSE" className="bg-background text-foreground dark:bg-slate-900 dark:text-slate-100">Townhouse</option>
               </select>
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="rounded-xl border border-border bg-muted/30 px-3 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 transition-all"
+                className="rounded-xl border border-border bg-card text-foreground px-3.5 py-2.5 text-sm font-medium shadow-sm hover:border-teal-500/50 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 transition-all cursor-pointer"
               >
-                <option value="newest">Newest First</option>
-                <option value="oldest">Oldest First</option>
-                <option value="name_asc">Name A-Z</option>
-                <option value="name_desc">Name Z-A</option>
-                <option value="price_asc">Price: Low to High</option>
-                <option value="price_desc">Price: High to Low</option>
+                <option value="newest" className="bg-background text-foreground dark:bg-slate-900 dark:text-slate-100">Newest First</option>
+                <option value="oldest" className="bg-background text-foreground dark:bg-slate-900 dark:text-slate-100">Oldest First</option>
+                <option value="name_asc" className="bg-background text-foreground dark:bg-slate-900 dark:text-slate-100">Name A-Z</option>
+                <option value="name_desc" className="bg-background text-foreground dark:bg-slate-900 dark:text-slate-100">Name Z-A</option>
+                <option value="price_asc" className="bg-background text-foreground dark:bg-slate-900 dark:text-slate-100">Price: Low to High</option>
+                <option value="price_desc" className="bg-background text-foreground dark:bg-slate-900 dark:text-slate-100">Price: High to Low</option>
               </select>
+              <button
+                onClick={() => refetchProjects()}
+                className="flex items-center gap-1.5 rounded-xl border border-border bg-muted/20 px-3 py-2.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-all"
+                title="Refresh"
+              >
+                <RefreshCw className="h-3 w-3" /> Refresh
+              </button>
               <button
                 onClick={() => { setSearchQuery(""); setStatusFilter(""); setTypeFilter(""); setSortBy("newest") }}
                 className="flex items-center gap-1.5 rounded-xl border border-border bg-muted/20 px-3 py-2.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-all"
@@ -548,26 +685,34 @@ export default function ProjectKnowledgeBase() {
             {sortedProjects.map((project, i) => {
               const StatusIcon = STATUS_ICONS[project.status] || FileText
               const TypeIcon = PropertyTypeIcon[project.property_type] || Building2
+              const borderColor = STATUS_BORDER_COLORS[project.status] || STATUS_BORDER_COLORS.DRAFT
+              const dotColor = STATUS_DOT_COLORS[project.status] || STATUS_DOT_COLORS.DRAFT
               return (
                 <div
                   key={project.id}
-                  className="dashboard-card group relative rounded-2xl border border-border bg-card/60 overflow-hidden backdrop-blur-md transition-all duration-300 hover:-translate-y-2 hover:shadow-premiumDark animate-fade-in"
+                  className={`dashboard-card group relative rounded-2xl border border-border bg-card/60 overflow-hidden backdrop-blur-md transition-all duration-300 hover:-translate-y-2 hover:shadow-premiumDark animate-fade-in border-l-4 ${borderColor} cursor-pointer`}
                   style={{ animationDelay: `${0.3 + i * 0.06}s` }}
+                  onClick={() => handleSelectProject(project)}
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-teal-500/10 via-amber-500/5 to-emerald-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
                   <div className="relative z-10">
                     {/* Card Header */}
-                    <div className="relative h-32 overflow-hidden">
+                    <div className="relative h-36 overflow-hidden">
                       <img
-                        src={`https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=600&h=300&fit=crop&random=${project.id}`}
+                        src={project.image_url || (project.media && project.media.length > 0 ? project.media[0].file : null) || `https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=600&h=300&fit=crop&random=${project.id}`}
                         alt={project.name}
-                        className="w-full h-full object-cover opacity-60"
+                        className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-500"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=600&h=300&fit=crop";
+                        }}
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-card/90 via-card/30 to-transparent" />
                       <div className="absolute top-3 right-3 flex items-center gap-2">
-                        <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${STATUS_COLORS[project.status] || STATUS_COLORS.DRAFT}`}>
+                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${STATUS_COLORS[project.status] || STATUS_COLORS.DRAFT}`}>
+                          <span className={`h-2 w-2 rounded-full ${dotColor} shrink-0`} />
                           <StatusIcon className="h-3 w-3" />
-                          {project.status}
+                          {project.status === "ONGOING" ? "Ongoing" : project.status === "PAST" ? "Past" : project.status === "UPCOMING" ? "Upcoming" : project.status === "DRAFT" ? "Draft" : project.status === "ARCHIVED" ? "Archived" : project.status}
                         </span>
                       </div>
                       <div className="absolute bottom-3 left-3">
@@ -601,12 +746,6 @@ export default function ProjectKnowledgeBase() {
                         )}
                       </div>
 
-                      {project.ai_processed && (
-                        <div className="flex items-center gap-1.5 text-xs text-teal-500 font-semibold">
-                          <Sparkles className="h-3 w-3" /> AI Processed
-                        </div>
-                      )}
-
                       {/* Tags */}
                       {project.tags && project.tags.length > 0 && (
                         <div className="flex flex-wrap gap-1.5">
@@ -626,53 +765,41 @@ export default function ProjectKnowledgeBase() {
                     {/* Card Actions */}
                     <div className="border-t border-border px-4 py-3 flex items-center justify-between">
                       <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => { setSelectedProject(project); setDetailTab("overview"); setView("detail") }}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-teal-500 hover:bg-teal-500/10 transition-all"
-                          title="View Details"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => { setEditData(project); setEditStep(1); setShowEditModal(true) }}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 transition-all"
-                          title="Edit Project"
-                        >
-                          <Edit3 className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (window.confirm(`Are you sure you want to archive "${project.name}"?`)) {
-                              deleteProjectMutation.mutate(project.id)
-                            }
-                          }}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-all"
-                          title="Archive Project"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => {
-                            setSelectedProject(project)
-                            setChatMessages([])
-                            setChatSessionId(null)
-                            setShowChatModal(true)
-                          }}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-teal-500 hover:bg-teal-500/10 transition-all"
-                          title="AI Chat"
-                        >
-                          <MessageSquare className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => duplicateProjectMutation.mutate(project.id)}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10 transition-all"
-                          title="Duplicate"
-                        >
-                          <Copy className="h-4 w-4" />
-                        </button>
-                        <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                         <button
+                           onClick={(e) => { e.stopPropagation(); handleSelectProject(project) }}
+                           className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-teal-500 hover:bg-teal-500/10 transition-all"
+                           title="View Details"
+                         >
+                           <Eye className="h-4 w-4" />
+                         </button>
+                         <button
+                           onClick={(e) => { e.stopPropagation(); setEditData({ ...project }); setEditStep(1); setShowEditModal(true) }}
+                           className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 transition-all"
+                           title="Edit Project"
+                         >
+                           <Edit3 className="h-4 w-4" />
+                         </button>
+                         <button
+                           onClick={(e) => {
+                             e.stopPropagation()
+                             if (window.confirm(`Are you sure you want to delete/archive "${project.name}"?`)) {
+                               deleteProjectMutation.mutate(project.id)
+                             }
+                           }}
+                           className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-all"
+                           title="Delete / Archive Project"
+                         >
+                           <Trash2 className="h-4 w-4" />
+                         </button>
+                       </div>
+                       <div className="flex items-center gap-1">
+                         <button
+                           onClick={(e) => { e.stopPropagation(); duplicateProjectMutation.mutate(project.id) }}
+                           className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-emerald-500 hover:bg-emerald-500/10 transition-all"
+                           title="Duplicate"
+                         >
+                           <Copy className="h-4 w-4" />
+                         </button>
                       </div>
                     </div>
                   </div>
@@ -709,7 +836,7 @@ export default function ProjectKnowledgeBase() {
                         <Archive className="h-5 w-5 text-red-400" />
                         <div>
                           <p className="text-sm font-semibold text-foreground">{project.name}</p>
-                          <p className="text-xs text-muted-foreground">{project.city} • {project.property_type} • Archived {formatDate(project.updated_at)}</p>
+                          <p className="text-xs text-muted-foreground">{project.city} • {project.property_type} • {getStatusLabel(project.status)} • {formatDate(project.updated_at)}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -817,6 +944,19 @@ export default function ProjectKnowledgeBase() {
                   </button>
                 </div>
                 <div className="space-y-4">
+                  <div className="flex items-center justify-between bg-muted/20 p-3 rounded-xl border border-border">
+                    <div>
+                      <p className="text-xs font-semibold text-foreground">Need a template?</p>
+                      <p className="text-[10px] text-muted-foreground">Download sample CSV file with standard fields</p>
+                    </div>
+                    <a
+                      href="/sample_projects.csv"
+                      download="sample_projects.csv"
+                      className="flex items-center gap-1.5 rounded-lg bg-teal-500/10 px-3 py-1.5 text-xs font-semibold text-teal-600 dark:text-teal-400 hover:bg-teal-500/20 transition-all"
+                    >
+                      <Download className="h-3.5 w-3.5" /> Sample CSV
+                    </a>
+                  </div>
                   <div className="border-2 border-dashed border-border rounded-2xl p-8 text-center hover:border-teal-500/50 transition-colors">
                     <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
                     <p className="text-sm font-semibold text-foreground">Drop files here or click to upload</p>
@@ -872,7 +1012,7 @@ export default function ProjectKnowledgeBase() {
 
         {/* Project Detail View */}
         {view === "detail" && selectedProject && (
-          <div className="animate-fade-in">
+          <div ref={detailRef} className="animate-fade-in pt-4 scroll-mt-6">
             {/* Detail Header */}
             <div className="dashboard-card group relative rounded-2xl border border-border bg-card/60 p-6 backdrop-blur-md mb-6 animate-fade-in">
               <div className="absolute inset-0 bg-gradient-to-r from-teal-500/10 via-amber-500/5 to-emerald-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
@@ -888,9 +1028,10 @@ export default function ProjectKnowledgeBase() {
                     <h2 className="text-xl font-extrabold text-foreground">{selectedProject.name}</h2>
                     <p className="text-xs text-muted-foreground">{selectedProject.city} • {selectedProject.property_type} • {selectedProject.builder}</p>
                   </div>
-                  <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${STATUS_COLORS[selectedProject.status] || STATUS_COLORS.DRAFT}`}>
-                    {selectedProject.status}
-                  </span>
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${STATUS_COLORS[selectedProject.status] || STATUS_COLORS.DRAFT}`}>
+                        <span className={`h-2 w-2 rounded-full ${STATUS_DOT_COLORS[selectedProject.status] || STATUS_DOT_COLORS.DRAFT}`} />
+                        {getStatusLabel(selectedProject.status)}
+                      </span>
                 </div>
 
                 {/* Detail Tabs */}
@@ -899,10 +1040,7 @@ export default function ProjectKnowledgeBase() {
                     { key: "overview", label: "Overview", icon: Info },
                     { key: "media", label: "Media", icon: Image },
                     { key: "documents", label: "Documents", icon: File },
-                    { key: "ai", label: "AI Processing", icon: Sparkles },
                     { key: "analytics", label: "Analytics", icon: BarChart3 },
-                    { key: "versions", label: "Versions", icon: History },
-                    { key: "chat", label: "Chat", icon: MessageSquare },
                   ].map((tab) => {
                     const Icon = tab.icon
                     return (
@@ -929,10 +1067,7 @@ export default function ProjectKnowledgeBase() {
               {detailTab === "overview" && <OverviewTab project={selectedProject} />}
               {detailTab === "media" && <MediaTab project={selectedProject} />}
               {detailTab === "documents" && <DocumentsTab project={selectedProject} />}
-              {detailTab === "ai" && <AITab project={selectedProject} />}
               {detailTab === "analytics" && <AnalyticsTab project={selectedProject} />}
-              {detailTab === "versions" && <VersionsTab project={selectedProject} />}
-              {detailTab === "chat" && <ChatTab project={selectedProject} />}
             </div>
           </div>
         )}
@@ -1072,26 +1207,38 @@ function AddProjectForm({ step, setStep, formData, setFormData, onSubmit, isPend
           <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Description</label>
           <textarea value={formData.description || ""} onChange={(e) => update("description", e.target.value)} placeholder="Project description" rows={3} className="w-full rounded-xl border border-border bg-muted/30 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 transition-all resize-none" />
         </div>
+        <div>
+          <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Cover Image URL</label>
+          <input type="url" value={formData.image_url || ""} onChange={(e) => update("image_url", e.target.value)} placeholder="https://images.unsplash.com/photo-..." className="w-full rounded-xl border border-border bg-muted/30 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 transition-all" />
+        </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Status</label>
-            <select value={formData.status || "DRAFT"} onChange={(e) => update("status", e.target.value)} className="w-full rounded-xl border border-border bg-muted/30 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 transition-all">
-              <option value="DRAFT">Draft</option>
-              <option value="ONGOING">Ongoing</option>
-              <option value="UPCOMING">Upcoming</option>
-              <option value="PAST">Past</option>
+            <select
+              value={formData.status || "DRAFT"}
+              onChange={(e) => update("status", e.target.value)}
+              className="w-full rounded-xl border border-border bg-card text-foreground px-4 py-2.5 text-sm font-medium shadow-sm hover:border-teal-500/50 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 transition-all cursor-pointer"
+            >
+              <option value="DRAFT" className="bg-background text-foreground dark:bg-slate-900 dark:text-slate-100">Draft</option>
+              <option value="ONGOING" className="bg-background text-foreground dark:bg-slate-900 dark:text-slate-100">Ongoing</option>
+              <option value="UPCOMING" className="bg-background text-foreground dark:bg-slate-900 dark:text-slate-100">Upcoming</option>
+              <option value="PAST" className="bg-background text-foreground dark:bg-slate-900 dark:text-slate-100">Past</option>
             </select>
           </div>
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Property Type</label>
-            <select value={formData.property_type || ""} onChange={(e) => update("property_type", e.target.value)} className="w-full rounded-xl border border-border bg-muted/30 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 transition-all">
-              <option value="">Select Type</option>
-              <option value="APARTMENT">Apartment</option>
-              <option value="VILLA">Villa</option>
-              <option value="PLOT">Plot</option>
-              <option value="COMMERCIAL">Commercial</option>
-              <option value="PENTHOUSE">Penthouse</option>
-              <option value="TOWNHOUSE">Townhouse</option>
+            <select
+              value={formData.property_type || ""}
+              onChange={(e) => update("property_type", e.target.value)}
+              className="w-full rounded-xl border border-border bg-card text-foreground px-4 py-2.5 text-sm font-medium shadow-sm hover:border-teal-500/50 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 transition-all cursor-pointer"
+            >
+              <option value="" className="bg-background text-foreground dark:bg-slate-900 dark:text-slate-100">Select Type</option>
+              <option value="APARTMENT" className="bg-background text-foreground dark:bg-slate-900 dark:text-slate-100">Apartment</option>
+              <option value="VILLA" className="bg-background text-foreground dark:bg-slate-900 dark:text-slate-100">Villa</option>
+              <option value="PLOT" className="bg-background text-foreground dark:bg-slate-900 dark:text-slate-100">Plot</option>
+              <option value="COMMERCIAL" className="bg-background text-foreground dark:bg-slate-900 dark:text-slate-100">Commercial</option>
+              <option value="PENTHOUSE" className="bg-background text-foreground dark:bg-slate-900 dark:text-slate-100">Penthouse</option>
+              <option value="TOWNHOUSE" className="bg-background text-foreground dark:bg-slate-900 dark:text-slate-100">Townhouse</option>
             </select>
           </div>
         </div>
@@ -1106,7 +1253,10 @@ function AddProjectForm({ step, setStep, formData, setFormData, onSubmit, isPend
           </div>
         </div>
         <div className="flex justify-end gap-3 pt-2">
-          <button onClick={() => setStep(2)} className="rounded-xl bg-gradient-to-r from-teal-500 to-amber-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal-500/20 hover:shadow-premiumDark transition-all">
+          <button type="button" onClick={onSubmit} disabled={isPending} className="rounded-xl border border-teal-500/30 bg-teal-500/10 px-5 py-2.5 text-sm font-semibold text-teal-600 dark:text-teal-400 hover:bg-teal-500/20 transition-all disabled:opacity-50">
+            {isPending ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Save Project"}
+          </button>
+          <button type="button" onClick={() => setStep(2)} className="rounded-xl bg-gradient-to-r from-teal-500 to-amber-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal-500/20 hover:shadow-premiumDark transition-all">
             Next Step
           </button>
         </div>
@@ -1128,6 +1278,10 @@ function AddProjectForm({ step, setStep, formData, setFormData, onSubmit, isPend
           </div>
         </div>
         <div>
+          <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">RERA Registration Number</label>
+          <input type="text" value={formData.rera_number || ""} onChange={(e) => update("rera_number", e.target.value)} placeholder="e.g. HRERA-GGM-2024-890" className="w-full rounded-xl border border-border bg-muted/30 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 transition-all" />
+        </div>
+        <div>
           <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Short Description</label>
           <textarea value={formData.short_description || ""} onChange={(e) => update("short_description", e.target.value)} placeholder="Short description for listings" rows={2} className="w-full rounded-xl border border-border bg-muted/30 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 transition-all resize-none" />
         </div>
@@ -1135,15 +1289,11 @@ function AddProjectForm({ step, setStep, formData, setFormData, onSubmit, isPend
           <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">SEO Description</label>
           <textarea value={formData.seo_description || ""} onChange={(e) => update("seo_description", e.target.value)} placeholder="SEO-optimized description" rows={2} className="w-full rounded-xl border border-border bg-muted/30 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 transition-all resize-none" />
         </div>
-        <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">WhatsApp Description</label>
-          <textarea value={formData.whatsapp_description || ""} onChange={(e) => update("whatsapp_description", e.target.value)} placeholder="WhatsApp-friendly description" rows={2} className="w-full rounded-xl border border-border bg-muted/30 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 transition-all resize-none" />
-        </div>
         <div className="flex justify-between pt-2">
-          <button onClick={() => setStep(1)} className="rounded-xl border border-border bg-muted/20 px-5 py-2.5 text-sm font-semibold text-muted-foreground hover:text-foreground transition-all">
+          <button type="button" onClick={() => setStep(1)} className="rounded-xl border border-border bg-muted/20 px-5 py-2.5 text-sm font-semibold text-muted-foreground hover:text-foreground transition-all">
             Back
           </button>
-          <button onClick={onSubmit} disabled={isPending} className="rounded-xl bg-gradient-to-r from-teal-500 to-amber-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal-500/20 hover:shadow-premiumDark transition-all disabled:opacity-50">
+          <button type="button" onClick={onSubmit} disabled={isPending} className="rounded-xl bg-gradient-to-r from-teal-500 to-amber-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal-500/20 hover:shadow-premiumDark transition-all disabled:opacity-50">
             {isPending ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Create Project"}
           </button>
         </div>
@@ -1167,6 +1317,10 @@ function EditProjectForm({ step, setStep, editData, setEditData, onSubmit, isPen
         <div>
           <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Description</label>
           <textarea value={editData.description || ""} onChange={(e) => update("description", e.target.value)} rows={3} className="w-full rounded-xl border border-border bg-muted/30 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 transition-all resize-none" />
+        </div>
+        <div>
+          <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Cover Image URL</label>
+          <input type="url" value={editData.image_url || ""} onChange={(e) => update("image_url", e.target.value)} placeholder="https://images.unsplash.com/photo-..." className="w-full rounded-xl border border-border bg-muted/30 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 transition-all" />
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
@@ -1203,7 +1357,10 @@ function EditProjectForm({ step, setStep, editData, setEditData, onSubmit, isPen
           </div>
         </div>
         <div className="flex justify-end gap-3 pt-2">
-          <button onClick={() => setStep(2)} className="rounded-xl bg-gradient-to-r from-teal-500 to-amber-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal-500/20 hover:shadow-premiumDark transition-all">
+          <button type="button" onClick={onSubmit} disabled={isPending} className="rounded-xl border border-teal-500/30 bg-teal-500/10 px-5 py-2.5 text-sm font-semibold text-teal-600 dark:text-teal-400 hover:bg-teal-500/20 transition-all disabled:opacity-50">
+            {isPending ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Save Changes"}
+          </button>
+          <button type="button" onClick={() => setStep(2)} className="rounded-xl bg-gradient-to-r from-teal-500 to-amber-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-teal-500/20 hover:shadow-premiumDark transition-all">
             Next Step
           </button>
         </div>
@@ -1225,16 +1382,16 @@ function EditProjectForm({ step, setStep, editData, setEditData, onSubmit, isPen
           </div>
         </div>
         <div>
+          <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">RERA Registration Number</label>
+          <input type="text" value={editData.rera_number || ""} onChange={(e) => update("rera_number", e.target.value)} placeholder="e.g. HRERA-GGM-2024-890" className="w-full rounded-xl border border-border bg-muted/30 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 transition-all" />
+        </div>
+        <div>
           <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Short Description</label>
           <textarea value={editData.short_description || ""} onChange={(e) => update("short_description", e.target.value)} rows={2} className="w-full rounded-xl border border-border bg-muted/30 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 transition-all resize-none" />
         </div>
         <div>
           <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">SEO Description</label>
           <textarea value={editData.seo_description || ""} onChange={(e) => update("seo_description", e.target.value)} rows={2} className="w-full rounded-xl border border-border bg-muted/30 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 transition-all resize-none" />
-        </div>
-        <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">WhatsApp Description</label>
-          <textarea value={editData.whatsapp_description || ""} onChange={(e) => update("whatsapp_description", e.target.value)} rows={2} className="w-full rounded-xl border border-border bg-muted/30 px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 transition-all resize-none" />
         </div>
         <div className="flex justify-between pt-2">
           <button onClick={() => setStep(1)} className="rounded-xl border border-border bg-muted/20 px-5 py-2.5 text-sm font-semibold text-muted-foreground hover:text-foreground transition-all">
@@ -1283,7 +1440,10 @@ function OverviewTab({ project }) {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Status</p>
-                  <p className="text-sm font-semibold text-foreground">{project.status}</p>
+                  <p className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    <span className={`h-2.5 w-2.5 rounded-full ${STATUS_DOT_COLORS[project.status] || STATUS_DOT_COLORS.DRAFT}`} />
+                    {getStatusLabel(project.status)}
+                  </p>
                 </div>
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Type</p>

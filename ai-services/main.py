@@ -12,6 +12,9 @@ from api.conversation_routes import router as conversation_router
 from api.rag_routes import router as rag_router
 from api.document_chat_routes import router as document_chat_router
 from api.matching_routes import router as matching_router
+from api.project_chat_routes import router as project_chat_router
+from api.project_ai_generate_routes import router as project_ai_generate_router
+from api.broadcast_routes import router as broadcast_router
 app = FastAPI(
     title=settings.APP_NAME,
     version="1.0.0"
@@ -28,6 +31,9 @@ app.include_router(conversation_router)
 app.include_router(rag_router)
 app.include_router(document_chat_router)
 app.include_router(matching_router)
+app.include_router(project_chat_router)
+app.include_router(project_ai_generate_router)
+app.include_router(broadcast_router)
 @app.get("/")
 async def root():
     return {

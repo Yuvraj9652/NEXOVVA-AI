@@ -11,6 +11,7 @@ import {
   Terminal,
   Notebook,
   ClipboardList,
+  ChevronLeft,
 } from "lucide-react"
 import api from "../api/client"
 
@@ -169,12 +170,21 @@ export default function AIChat() {
         <div className="dashboard-card group relative w-full lg:w-80 rounded-3xl border border-border bg-card/60 p-5 flex flex-col shadow-2xl backdrop-blur-xl shrink-0 overflow-hidden animate-fade-in">
           <div className="absolute inset-0 bg-gradient-to-r from-teal-500/10 via-amber-500/5 to-emerald-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
           <div className="relative z-10 flex items-center justify-between mb-4">
-            <h2 className="text-sm font-extrabold text-foreground flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-teal-500/10 text-teal-500">
-                <MessageSquare className="h-4 w-4" />
-              </div>
-              Discussions
-            </h2>
+            <div className="flex items-center gap-2">
+              <a
+                href="/dashboard"
+                className="flex h-8 w-8 items-center justify-center rounded-xl border border-border bg-card/60 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-all shrink-0"
+                title="Back to Dashboard"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </a>
+              <h2 className="text-sm font-extrabold text-foreground flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-teal-500/10 text-teal-500">
+                  <MessageSquare className="h-4 w-4" />
+                </div>
+                Discussions
+              </h2>
+            </div>
             <button
               onClick={() => createSessionMutation.mutate()}
               className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-teal-500 to-amber-500 text-white shadow-premium hover:shadow-premiumDark transition-all"
