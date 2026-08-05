@@ -23,6 +23,7 @@ import CompanyWorkspace from "./pages/CompanyWorkspace"
 import ProjectHub from "./pages/ProjectHub"
 import ProjectKnowledgeBase from "./pages/ProjectKnowledgeBase"
 import SmartProjectBroadcasting from "./pages/SmartProjectBroadcasting"
+import CustomerDatabase from "./pages/CustomerDatabase"
 import AICustomerMatching from "./pages/AICustomerMatching"
 import ProjectAnalytics from "./pages/ProjectAnalytics"
 import ProjectDocumentManager from "./pages/ProjectDocumentManager"
@@ -83,6 +84,7 @@ function AppContent() {
                     <Route path="/company-workspace" element={<CompanyWorkspace />} />
                     <Route path="/company-workspace/project-hub" element={<ProjectHub />} />
                     <Route path="/company-workspace/project-hub/knowledge-base" element={<ProjectKnowledgeBase />} />
+                    <Route path="/customers" element={<CustomerDatabase />} />
                     <Route path="/company-workspace/project-hub/broadcasting" element={<SmartProjectBroadcasting />} />
                     <Route path="/company-workspace/project-hub/ai-matching" element={<AICustomerMatching />} />
                     <Route path="/company-workspace/project-hub/analytics" element={<ProjectAnalytics />} />

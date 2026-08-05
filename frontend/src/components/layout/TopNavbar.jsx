@@ -12,6 +12,7 @@ import {
   Menu,
   X,
   User,
+  Database,
 } from "lucide-react"
 import useAuthStore from "../../store/authStore"
 
@@ -22,6 +23,7 @@ export default function TopNavbar() {
 
   const navItems = [
     { path: "/dashboard", name: "Dashboard", icon: LayoutDashboard },
+    { path: "/customers", name: "Customer Database", icon: Database },
     { path: "/crm", name: "AI Sales & Leads", icon: Users },
     { path: "/reports-analytics", name: "Reports", icon: TrendingUp },
     { path: "/company-workspace", name: "Workspace", icon: Building },
