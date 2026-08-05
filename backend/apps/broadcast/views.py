@@ -36,7 +36,9 @@ from apps.broadcast.serializers import (
 from apps.broadcast.services import BroadcastService
 from apps.broadcast.selectors import BroadcastSelector
 from apps.broadcast.permissions import IsOrganizationMember, IsAdminOrManager
-from apps.properties.models import Project
+from django.core.mail import send_mail
+from django.conf import settings
+from apps.customers.models import Customer
 import uuid
 
 
@@ -89,6 +91,183 @@ class CampaignViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(organization=self.request.organization, created_by=self.request.user)
+
+    def create(self, request, *args, **kwargs):
+        response = super().create(request, *args, **kwargs)
+        campaign_id = response.data.get("id")
+        if campaign_id:
+            campaign = Campaign.objects.get(id=campaign_id)
+            if campaign.status == Campaign.Statuses.ACTIVE and campaign.target_type == "SELECTED_CUSTOMERS":
+                summary = self.send_broadcast(campaign)
+                response.data["broadcast_summary"] = summary
+        return response
+
+    def update(self, request, *args, **kwargs):
+        campaign = self.get_object()
+        old_status = campaign.status
+        response = super().update(request, *args, **kwargs)
+        campaign.refresh_from_db()
+        if old_status != Campaign.Statuses.ACTIVE and campaign.status == Campaign.Statuses.ACTIVE and campaign.target_type == "SELECTED_CUSTOMERS":
+            summary = self.send_broadcast(campaign)
+            response.data["broadcast_summary"] = summary
+        return response
+
+    def send_broadcast(self, campaign):
+        import logging
+        logger = logging.getLogger(__name__)
+
+        customer_ids = campaign.selected_customer_ids or []
+        total_selected = len(customer_ids)
+
+        if not customer_ids:
+            return {
+                "total_selected": 0,
+                "successfully_sent": 0,
+                "failed_count": 0,
+                "failed_recipients": []
+            }
+
+        customers = Customer.objects.filter(id__in=customer_ids, organization=campaign.organization)
+        found_ids = set(c.id for c in customers)
+
+        successfully_sent = 0
+        failed_count = 0
+        failed_recipients = []
+
+        # Handle non-existent customer IDs
+        for cid in customer_ids:
+            if cid not in found_ids:
+                failed_count += 1
+                failed_recipients.append({
+                    "customer_id": cid,
+                    "customer_name": f"Customer ID {cid}",
+                    "email": "",
+                    "reason": "Customer not found in database or does not belong to this organization"
+                })
+
+        project = campaign.project
+        project_text = ""
+        project_html = ""
+        if project:
+            project_text = f"\n\n--- Project Information ---\nProject: {project.name}\nBuilder: {project.builder}\nLocation: {project.city}\nProperty Type: {project.property_type}\nPrice Range: {project.starting_price} - {project.max_price}\nDescription: {project.short_description or project.description}"
+            project_html = f"""
+            <div style="margin-top: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px;">
+              <h3>Project Information: {project.name}</h3>
+              <p><strong>Builder:</strong> {project.builder}</p>
+              <p><strong>Location:</strong> {project.city}</p>
+              <p><strong>Property Type:</strong> {project.property_type}</p>
+              <p><strong>Price Range:</strong> {project.starting_price} - {project.max_price}</p>
+              <p>{project.short_description or project.description}</p>
+            </div>
+            """
+
+        image_html = ""
+        image_text = ""
+        if campaign.image_url:
+            image_text = f"\n\nImage: {campaign.image_url}"
+            image_html = f'<br/><br/><img src="{campaign.image_url}" alt="Campaign Image" style="max-width: 100%; height: auto;"/><br/><br/>'
+
+        for customer in customers:
+            email = customer.email
+            if not email or "@" not in email:
+                failed_count += 1
+                failed_recipients.append({
+                    "customer_id": customer.id,
+                    "customer_name": f"{customer.first_name} {customer.last_name}",
+                    "email": email or "",
+                    "reason": "Missing or invalid email address"
+                })
+                # Log failed campaign message
+                CampaignMessage.objects.create(
+                    organization=campaign.organization,
+                    campaign=campaign,
+                    customer_name=f"{customer.first_name} {customer.last_name}",
+                    customer_phone=customer.phone,
+                    customer_email=email or "",
+                    channel="email",
+                    message=campaign.content,
+                    status=CampaignMessage.MessageStatus.FAILED,
+                    failed_reason="Missing or invalid email address",
+                )
+                continue
+
+            formatted_content = campaign.content.replace('\n', '<br/>')
+            body_text = f"Hi {customer.first_name},\n\n{campaign.content}{image_text}{project_text}"
+            body_html = f"""
+            <html>
+            <body>
+              <p>Hi {customer.first_name},</p>
+              <p>{formatted_content}</p>
+              {image_html}
+              {project_html}
+            </body>
+            </html>
+            """
+
+            try:
+                send_mail(
+                    subject=campaign.subject or campaign.name,
+                    message=body_text,
+                    from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@nexova.ai"),
+                    recipient_list=[email],
+                    html_message=body_html,
+                    fail_silently=False
+                )
+                successfully_sent += 1
+                # Log campaign message
+                CampaignMessage.objects.create(
+                    organization=campaign.organization,
+                    campaign=campaign,
+                    customer_name=f"{customer.first_name} {customer.last_name}",
+                    customer_phone=customer.phone,
+                    customer_email=email,
+                    channel="email",
+                    message=campaign.content,
+                    status=CampaignMessage.MessageStatus.SENT,
+                )
+            except Exception as e:
+                logger.error(f"Failed to send email to {email}: {e}")
+                failed_count += 1
+                failed_recipients.append({
+                    "customer_id": customer.id,
+                    "customer_name": f"{customer.first_name} {customer.last_name}",
+                    "email": email,
+                    "reason": str(e)
+                })
+                # Log failed campaign message
+                CampaignMessage.objects.create(
+                    organization=campaign.organization,
+                    campaign=campaign,
+                    customer_name=f"{customer.first_name} {customer.last_name}",
+                    customer_phone=customer.phone,
+                    customer_email=email,
+                    channel="email",
+                    message=campaign.content,
+                    status=CampaignMessage.MessageStatus.FAILED,
+                    failed_reason=str(e),
+                )
+
+        summary = {
+            "total_selected": total_selected,
+            "successfully_sent": successfully_sent,
+            "failed_count": failed_count,
+            "failed_recipients": failed_recipients
+        }
+
+        # Update campaign total sent and reach
+        campaign.total_sent = successfully_sent
+        campaign.reach = str(successfully_sent)
+        campaign.save(update_fields=["total_sent", "reach"])
+
+        # Log completion
+        BroadcastService.log_action(
+            campaign,
+            "BROADCAST",
+            f"Email broadcast completed. Success: {successfully_sent}, Failed: {failed_count}."
+        )
+
+        return summary
+
 
     @action(detail=True, methods=["post"])
     def send(self, request, pk=None):
