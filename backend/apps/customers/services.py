@@ -319,3 +319,44 @@ class CustomerService:
             import pandas as pd
             df = pd.read_excel(file_path)
             return df.to_dict(orient="records")
+
+    @staticmethod
+    def get_customer_by_identity(organization, identity: str):
+        """Looks up a customer by email or phone number under the organization (tenant isolated)."""
+        if not identity:
+            return None
+        identity = identity.strip()
+        # Look up by email first
+        if "@" in identity:
+            return Customer.objects.filter(organization=organization, email__iexact=identity).first()
+        # Look up by phone
+        return Customer.objects.filter(organization=organization, phone=identity).first()
+
+    @staticmethod
+    @transaction.atomic
+    def get_or_create_customer(organization, identity: str, default_fields: dict = None):
+        """Gets or creates a customer by email or phone number in a tenant-isolated manner."""
+        if not identity:
+            raise ValueError("Identity string cannot be empty")
+        identity = identity.strip()
+        customer = CustomerService.get_customer_by_identity(organization, identity)
+        if customer:
+            return customer, False
+
+        # Create new customer
+        fields = default_fields or {}
+        if "@" in identity:
+            fields["email"] = identity
+        else:
+            fields["phone"] = identity
+
+        # Generate a unique customer code
+        from django.db.models import Max
+        import random
+        last_id = Customer.objects.aggregate(Max("id"))["id__max"] or 0
+        next_id = last_id + 1 + random.randint(100, 10000)
+        fields["customer_code"] = f"CUS-{next_id:06d}"
+
+        customer = CustomerService.create_customer(organization=organization, **fields)
+        return customer, True
+

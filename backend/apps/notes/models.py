@@ -15,6 +15,9 @@ class Note(TenantModel):
     lead = models.ForeignKey(
         "leads.Lead", on_delete=models.SET_NULL, null=True, blank=True, related_name="lead_notes"
     )
+    customer = models.ForeignKey(
+        "customers.Customer", on_delete=models.SET_NULL, null=True, blank=True, related_name="customer_notes"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

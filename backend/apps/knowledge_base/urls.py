@@ -19,7 +19,7 @@ from apps.knowledge_base.views import (
 
 router = DefaultRouter()
 router.register(r"categories", ProjectCategoryViewSet, basename="project-category")
-router.register(r"", ProjectViewSet, basename="project")
+router.register(r"projects", ProjectViewSet, basename="project")
 router.register(r"media", ProjectMediaViewSet, basename="project-media")
 router.register(r"documents", ProjectDocumentViewSet, basename="project-document")
 router.register(r"amenities", ProjectAmenityViewSet, basename="project-amenity")

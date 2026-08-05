@@ -79,7 +79,7 @@ class Customer(TenantModel):
     def save(self, *args, **kwargs):
         if not self.customer_code:
             from django.db.models import Max
-            last_id = Customer.objects.filter(organization=self.organization).aggregate(Max("id"))["id__max"]
+            last_id = Customer.objects.aggregate(Max("id"))["id__max"]
             next_id = (last_id + 1) if last_id else 1
             self.customer_code = f"CUS-{next_id:06d}"
         super().save(*args, **kwargs)
