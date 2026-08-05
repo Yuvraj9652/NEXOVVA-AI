@@ -14,6 +14,7 @@ import {
   LayoutGrid,
   Kanban,
   Notebook,
+  ChevronLeft,
 } from "lucide-react"
 import api from "../api/client"
 
@@ -177,13 +178,22 @@ export default function CRM() {
         
         {/* CRM Actions Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between animate-fade-in">
-          <div>
-            <h1 className="text-4xl font-extrabold tracking-tight text-foreground">
-              <span className="bg-gradient-to-r from-teal-500 to-amber-500 bg-clip-text text-transparent">Sales CRM</span>
-            </h1>
-            <p className="text-muted-foreground text-sm mt-2">
-              Manage contacts, log interactions, and track deal pipelines.
-            </p>
+          <div className="flex items-center gap-4">
+            <a
+              href="/dashboard"
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card/60 text-muted-foreground hover:text-foreground hover:bg-muted/40 hover:border-teal-500/30 transition-all duration-300 shadow-sm shrink-0"
+              title="Back to Dashboard"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </a>
+            <div>
+              <h1 className="text-4xl font-extrabold tracking-tight text-foreground">
+                <span className="bg-gradient-to-r from-teal-500 to-amber-500 bg-clip-text text-transparent">Sales CRM</span>
+              </h1>
+              <p className="text-muted-foreground text-sm mt-1">
+                Manage contacts, log interactions, and track deal pipelines.
+              </p>
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <button

@@ -1,5 +1,5 @@
 import React, { useEffect } from "react"
-import { Building2, FolderOpen, ArrowRight, Users, BarChart3 } from "lucide-react"
+import { Building2, FolderOpen, ArrowRight, Users, BarChart3, ChevronLeft } from "lucide-react"
 
 const workspaceSections = [
   {
@@ -72,13 +72,22 @@ export default function CompanyWorkspace() {
 
       <div className="relative z-10 mx-auto max-w-7xl px-6 pt-8 pb-16 lg:px-12 space-y-8">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="animate-fade-in">
-            <h1 className="text-4xl font-extrabold tracking-tight text-foreground">
-              Company Workspace
-            </h1>
-            <p className="text-muted-foreground text-sm mt-2">
-              Central hub for your organization's projects, collaboration, and resources.
-            </p>
+          <div className="flex items-center gap-4 animate-fade-in">
+            <a
+              href="/dashboard"
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card/60 text-muted-foreground hover:text-foreground hover:bg-muted/40 hover:border-teal-500/30 transition-all duration-300 shadow-sm shrink-0"
+              title="Back to Dashboard"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </a>
+            <div>
+              <h1 className="text-4xl font-extrabold tracking-tight text-foreground">
+                Company Workspace
+              </h1>
+              <p className="text-muted-foreground text-sm mt-1">
+                Central hub for your organization's projects, collaboration, and resources.
+              </p>
+            </div>
           </div>
         </div>
 

@@ -81,3 +81,33 @@ class AIService:
             except Exception as e:
                 logger.error(f"Unexpected error calling AI service: {e}")
                 raise AIServiceException(f"Unexpected error calling AI service: {str(e)}")
+
+    @classmethod
+    def call_project_chat(cls, session_id: str, message: str, context: dict) -> str:
+        url = urljoin(settings.AI_SERVICE_URL, "/project-chat/")
+        timeout = getattr(settings, "AI_SERVICE_TIMEOUT", 30.0)
+        payload = {"session_id": str(session_id), "message": message, "context": context}
+        try:
+            response = requests.post(url, json=payload, timeout=timeout)
+            if response.status_code == 200:
+                res_data = response.json()
+                return res_data.get("response", "No response from AI.")
+            return f"AI service error: {response.status_code}"
+        except Exception as e:
+            return f"AI Service unavailable: {str(e)}"
+
+    @classmethod
+    def call_project_ai_generate(cls, payload: dict) -> dict:
+        url = urljoin(settings.AI_SERVICE_URL, "/project-ai-generate/")
+        timeout = getattr(settings, "AI_SERVICE_TIMEOUT", 30.0)
+        try:
+            response = requests.post(url, json=payload, timeout=timeout)
+            if response.status_code == 200:
+                return response.json()
+            raise AIServiceException(f"AI service returned status code {response.status_code}")
+        except requests.exceptions.Timeout:
+            raise AIServiceTimeoutException("AI service request timed out.")
+        except requests.exceptions.ConnectionError:
+            raise AIServiceOfflineException("AI service is offline.")
+        except Exception as e:
+            raise AIServiceException(f"Unexpected error calling AI service: {str(e)}")

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react"
-import { Lock, Shield, ShieldCheck, ShieldAlert, QrCode, Check, AlertTriangle, Key } from "lucide-react"
+import { Lock, Shield, ShieldCheck, ShieldAlert, QrCode, Check, AlertTriangle, Key, ChevronLeft } from "lucide-react"
 import api from "../api/client"
 import useAuthStore from "../store/authStore"
 
@@ -191,15 +191,24 @@ export default function Settings() {
       <div className="relative z-10 mx-auto max-w-7xl px-6 pt-8 pb-16 lg:px-12 space-y-8">
         
         {/* Header */}
-        <div className="animate-fade-in">
-          <h1 className="text-4xl font-extrabold tracking-tight text-foreground">
-            <span className="bg-gradient-to-r from-teal-500 to-amber-500 bg-clip-text text-transparent">Settings</span>{" "}
-            <span className="text-foreground">&</span>{" "}
-            <span className="bg-gradient-to-r from-amber-500 to-emerald-500 bg-clip-text text-transparent">Security</span>
-          </h1>
-          <p className="text-muted-foreground text-sm mt-2">
-            Manage your account security, passwords, and multi-factor authentication.
-          </p>
+        <div className="flex items-center gap-4 animate-fade-in">
+          <a
+            href="/dashboard"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card/60 text-muted-foreground hover:text-foreground hover:bg-muted/40 hover:border-teal-500/30 transition-all duration-300 shadow-sm shrink-0"
+            title="Back to Dashboard"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </a>
+          <div>
+            <h1 className="text-4xl font-extrabold tracking-tight text-foreground">
+              <span className="bg-gradient-to-r from-teal-500 to-amber-500 bg-clip-text text-transparent">Settings</span>{" "}
+              <span className="text-foreground">&</span>{" "}
+              <span className="bg-gradient-to-r from-amber-500 to-emerald-500 bg-clip-text text-transparent">Security</span>
+            </h1>
+            <p className="text-muted-foreground text-sm mt-1">
+              Manage your account security, passwords, and multi-factor authentication.
+            </p>
+          </div>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">

@@ -11,8 +11,9 @@ def create_user_profiles(sender, instance, created,raw=False, **kwargs):
         return
     if created:
         Profile.objects.get_or_create(user=instance)
-        # Create a default UserProfile if not already present
-        UserProfile.objects.get_or_create(user=instance)
+        from apps.organizations.models import Organization
+        default_org, _ = Organization.objects.get_or_create(name="Default Organization")
+        UserProfile.objects.get_or_create(user=instance, defaults={"organization": default_org})
 
 
 @receiver(post_save, sender=settings.AUTH_USER_MODEL)
