@@ -2,9 +2,22 @@ from django.contrib import admin
 from django.urls import include, path
 from django.conf import settings
 from django.conf.urls.static import static
+from django.http import JsonResponse
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
+
+def home_view(request):
+    return JsonResponse(
+        {
+            "status": "ok",
+            "service": "NEXOVA AI Backend",
+            "docs": "/api/docs/",
+        }
+    )
+
+
 urlpatterns = [
+    path("", home_view, name="home"),
     path("admin/", admin.site.urls),
     path("accounts/", include("allauth.urls")),
     path("api/auth/", include("apps.authentication.urls")),
