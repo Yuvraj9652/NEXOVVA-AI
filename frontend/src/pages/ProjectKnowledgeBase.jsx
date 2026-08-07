@@ -330,9 +330,17 @@ export default function ProjectKnowledgeBase() {
     onSuccess: (res) => {
       invalidateAllProjectQueries()
       setBulkImportResults(res.data)
-      showToast(`Imported ${res.data.imported?.length || 0} projects`, "success")
+      const importedCount = res.data.imported?.length || 0
+      const errorCount = res.data.errors?.length || 0
+      if (errorCount > 0) {
+        showToast(`Import completed with ${errorCount} errors`, "warning")
+      } else {
+        showToast(`Imported ${importedCount} projects successfully`, "success")
+      }
     },
-    onError: (err) => showToast(err.response?.data?.detail || "Import failed", "error"),
+    onError: (err) => {
+      showToast(err.response?.data?.detail || "Import failed. Please check the file structure.", "error")
+    },
   })
 
   const aiGenerateMutation = useMutation({
@@ -1012,11 +1020,87 @@ export default function ProjectKnowledgeBase() {
                     </div>
                   )}
                   {bulkImportResults && (
-                    <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-2">
+                    <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-3">
                       <p className="text-xs font-bold text-foreground">Import Results</p>
-                      <p className="text-xs text-emerald-500">Imported: {bulkImportResults.imported?.length || 0}</p>
+                      
+                      {bulkImportResults.imported?.length >= 0 && (
+                        <p className="text-xs text-emerald-500 font-medium">
+                          Imported {bulkImportResults.imported.length} of {bulkImportResults.imported.length + (bulkImportResults.errors?.length || 0)} projects successfully.
+                        </p>
+                      )}
+
                       {bulkImportResults.errors?.length > 0 && (
-                        <p className="text-xs text-red-500">Errors: {bulkImportResults.errors.length}</p>
+                        <div className="space-y-2 mt-2">
+                          <div className="flex items-center justify-between text-[11px] text-muted-foreground uppercase font-bold tracking-wider">
+                            <span>Validation Failures ({bulkImportResults.errors.length})</span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  const text = bulkImportResults.errors
+                                    .map((e) => `Row ${e.row} - Column: ${e.field} - ${e.message}`)
+                                    .join("\n")
+                                  navigator.clipboard.writeText(text)
+                                  showToast("Errors copied to clipboard", "success")
+                                }}
+                                className="text-teal-500 hover:underline cursor-pointer"
+                              >
+                                Copy
+                              </button>
+                              <span>|</span>
+                              <button
+                                onClick={() => {
+                                  const text = bulkImportResults.errors
+                                    .map((e) => `Row ${e.row} - Column: ${e.field} - ${e.message}`)
+                                    .join("\n")
+                                  const blob = new Blob([text], { type: "text/plain" })
+                                  const url = URL.createObjectURL(blob)
+                                  const a = document.createElement("a")
+                                  a.href = url
+                                  a.download = "import_errors.txt"
+                                  a.click()
+                                  URL.revokeObjectURL(url)
+                                }}
+                                className="text-teal-500 hover:underline cursor-pointer"
+                              >
+                                Download
+                              </button>
+                            </div>
+                          </div>
+                          
+                          <div className="max-h-48 overflow-y-auto space-y-2 border border-border/40 rounded-lg p-2.5 bg-background/50">
+                            {bulkImportResults.errors.map((err, i) => (
+                              <div key={i} className="text-xs border-b border-border/20 last:border-0 pb-1.5 last:pb-0">
+                                <div className="font-semibold text-red-500 flex items-center gap-1.5">
+                                  <span>❌ Row {err.row}</span>
+                                </div>
+                                <div className="text-muted-foreground text-[11px] mt-0.5">
+                                  <span className="font-medium text-foreground">Column:</span> {err.field}
+                                </div>
+                                <div className="text-foreground text-[11px] mt-0.5">
+                                  {err.message === "Status must be one of: ONGOING, UPCOMING, PAST, DRAFT or ARCHIVED" ? (
+                                    <>
+                                      Allowed values:<br />
+                                      <span className="text-muted-foreground font-mono">ONGOING, UPCOMING, PAST, DRAFT, ARCHIVED</span>
+                                    </>
+                                  ) : err.message.includes("Property Type must be one of:") ? (
+                                    <>
+                                      Allowed values:<br />
+                                      <span className="text-muted-foreground font-mono">APARTMENT, VILLA, PLOT, COMMERCIAL, PENTHOUSE, TOWNHOUSE</span>
+                                    </>
+                                  ) : err.message === "Starting Price must be a valid number." ? (
+                                    "Enter a valid numeric value."
+                                  ) : err.message === "Max Price must be a valid number." ? (
+                                    "Enter a valid numeric value."
+                                  ) : err.message === "Project Name is required." ? (
+                                    "Project Name is required."
+                                  ) : (
+                                    err.message
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       )}
                     </div>
                   )}

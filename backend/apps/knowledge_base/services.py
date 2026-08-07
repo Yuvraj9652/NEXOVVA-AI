@@ -34,10 +34,17 @@ class ProjectService:
     @staticmethod
     @transaction.atomic
     def create_project(organization, created_by, **validated_data):
+        # Filter validated_data to only include concrete database fields of Project
+        valid_fields = {f.name for f in Project._meta.get_fields() if f.concrete}
+        valid_fields.discard('id')
+        valid_fields.discard('organization')
+        valid_fields.discard('created_by')
+        cleaned_data = {k: v for k, v in validated_data.items() if k in valid_fields}
+
         project = Project.objects.create(
             organization=organization,
             created_by=created_by,
-            **validated_data
+            **cleaned_data
         )
         ProjectAnalytics.objects.create(organization=organization, project=project)
         ProjectVersion.objects.create(
@@ -46,7 +53,7 @@ class ProjectService:
             version_number=1,
             change_summary="Project created",
             changed_fields=["all"],
-            snapshot=_make_json_safe(validated_data),
+            snapshot=_make_json_safe(cleaned_data),
             created_by=created_by,
         )
         return project

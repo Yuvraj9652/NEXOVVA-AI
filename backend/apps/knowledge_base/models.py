@@ -59,7 +59,7 @@ class ProjectDocument(TenantModel):
         FLOOR_PLAN = "FLOOR_PLAN", "Floor Plans"
         OTHER = "OTHER", "Other"
 
-    project = models.ForeignKey("properties.Project", on_delete=models.CASCADE, related_name="kb_documents")
+    project = models.ForeignKey("properties.Project", on_delete=models.CASCADE, related_name="kb_documents", null=True, blank=True)
     document_type = models.CharField(max_length=20, choices=DocumentType.choices, default=DocumentType.OTHER)
     name = models.CharField(max_length=255)
     file = models.FileField(upload_to="project_documents/")

@@ -46,6 +46,9 @@ from apps.properties.models import Project
 from apps.properties.serializers import ProjectSerializer
 import uuid
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ProjectCategoryViewSet(viewsets.ModelViewSet):
@@ -207,84 +210,148 @@ class ProjectViewSet(viewsets.ModelViewSet):
                     f.seek(0)
                     content = f.read().decode("utf-8-sig", errors="ignore")
                     reader = csv.DictReader(io.StringIO(content))
-                    for row in reader:
+                    for row_idx, row in enumerate(reader, start=2):
+                        row_errors = []
+                        
                         name = row.get("name") or row.get("Name") or row.get("title") or row.get("Title")
-                        if not name:
+                        if not name or not name.strip():
+                            errors.append({
+                                "row": row_idx,
+                                "field": "name",
+                                "message": "Project Name is required."
+                            })
                             continue
 
-                        starting_price = row.get("starting_price") or row.get("Starting Price") or row.get("price")
-                        max_price = row.get("max_price") or row.get("Max Price")
+                        starting_price_raw = row.get("starting_price") or row.get("Starting Price") or row.get("price")
+                        starting_price = None
+                        if starting_price_raw and str(starting_price_raw).strip():
+                            try:
+                                cleaned_price = str(starting_price_raw).replace(",", "").replace("$", "").replace("₹", "").strip()
+                                starting_price = float(cleaned_price)
+                            except (ValueError, TypeError):
+                                row_errors.append({
+                                    "row": row_idx,
+                                    "field": "starting_price",
+                                    "message": "Starting Price must be a valid number."
+                                })
+
+                        max_price_raw = row.get("max_price") or row.get("Max Price")
+                        max_price = None
+                        if max_price_raw and str(max_price_raw).strip():
+                            try:
+                                cleaned_max = str(max_price_raw).replace(",", "").replace("$", "").replace("₹", "").strip()
+                                max_price = float(cleaned_max)
+                            except (ValueError, TypeError):
+                                row_errors.append({
+                                    "row": row_idx,
+                                    "field": "max_price",
+                                    "message": "Max Price must be a valid number."
+                                })
+
+                        status_raw = row.get("status") or row.get("Status")
+                        status_val = "DRAFT"
+                        if status_raw and str(status_raw).strip():
+                            status_val = str(status_raw).strip().upper()
+                            valid_statuses = [c[0] for c in Project.ProjectStatus.choices]
+                            if status_val not in valid_statuses:
+                                row_errors.append({
+                                    "row": row_idx,
+                                    "field": "status",
+                                    "message": f"Status must be one of: {', '.join(valid_statuses)}"
+                                })
+
+                        type_raw = row.get("property_type") or row.get("Property Type") or row.get("type")
+                        type_val = "APARTMENT"
+                        if type_raw and str(type_raw).strip():
+                            type_val = str(type_raw).strip().upper()
+                            valid_types = [c[0] for c in Project.PropertyType.choices]
+                            if type_val not in valid_types:
+                                row_errors.append({
+                                    "row": row_idx,
+                                    "field": "property_type",
+                                    "message": f"Property Type must be one of: {', '.join(valid_types)}"
+                                })
+
+                        if row_errors:
+                            errors.extend(row_errors)
+                            continue
+
                         try:
-                            starting_price = float(starting_price) if starting_price else None
-                        except (ValueError, TypeError):
-                            starting_price = None
-                        try:
-                            max_price = float(max_price) if max_price else None
-                        except (ValueError, TypeError):
-                            max_price = None
-
-                        status_val = (row.get("status") or row.get("Status") or "ONGOING").upper()
-                        type_val = (row.get("property_type") or row.get("Property Type") or row.get("type") or "APARTMENT").upper()
-
-                        valid_statuses = [c[0] for c in Project.ProjectStatus.choices]
-                        if status_val not in valid_statuses:
-                            status_val = "ONGOING"
-
-                        valid_types = [c[0] for c in Project.PropertyType.choices]
-                        if type_val not in valid_types:
-                            type_val = "APARTMENT"
-
-                        project_data = {
-                            "name": name.strip(),
-                            "description": row.get("description") or row.get("Description") or "",
-                            "short_description": row.get("short_description") or row.get("Short Description") or "",
-                            "builder": row.get("builder") or row.get("Builder") or "",
-                            "city": row.get("city") or row.get("City") or "",
-                            "state": row.get("state") or row.get("State") or "",
-                            "address": row.get("address") or row.get("Address") or "",
-                            "status": status_val,
-                            "property_type": type_val,
-                            "starting_price": starting_price,
-                            "max_price": max_price,
-                            "rera_number": row.get("rera_number") or row.get("RERA Number") or "",
-                            "image_url": row.get("image_url") or row.get("Image URL") or "",
-                        }
-
-                        proj = ProjectService.create_project(
-                            organization=organization,
-                            created_by=request.user if request.user.is_authenticated else None,
-                            **project_data
-                        )
-                        if proj.image_url:
-                            ProjectMedia.objects.create(
+                            project_data = {
+                                "name": name.strip(),
+                                "description": row.get("description") or row.get("Description") or "",
+                                "short_description": row.get("short_description") or row.get("Short Description") or "",
+                                "builder": row.get("builder") or row.get("Builder") or "",
+                                "city": row.get("city") or row.get("City") or "",
+                                "state": row.get("state") or row.get("State") or "",
+                                "address": row.get("address") or row.get("Address") or "",
+                                "status": status_val,
+                                "property_type": type_val,
+                                "starting_price": starting_price,
+                                "max_price": max_price,
+                                "rera_number": row.get("rera_number") or row.get("RERA Number") or "",
+                                "image_url": row.get("image_url") or row.get("Image URL") or "",
+                            }
+                            proj = ProjectService.create_project(
                                 organization=organization,
-                                project=proj,
-                                media_type=ProjectMedia.MediaType.IMAGE,
-                                file=proj.image_url,
-                                caption=f"{proj.name} Cover Image",
-                                is_primary=True,
+                                created_by=request.user if request.user.is_authenticated else None,
+                                **project_data
                             )
-                        imported.append({"id": proj.id, "name": proj.name, "filename": f.name})
+                            if proj.image_url:
+                                ProjectMedia.objects.create(
+                                    organization=organization,
+                                    project=proj,
+                                    media_type=ProjectMedia.MediaType.IMAGE,
+                                    file=proj.image_url,
+                                    caption=f"{proj.name} Cover Image",
+                                    is_primary=True,
+                                )
+                            imported.append({"id": proj.id, "name": proj.name, "filename": f.name})
+                        except Exception as e:
+                            logger.exception("Failed to save project in bulk import")
+                            errors.append({
+                                "row": row_idx,
+                                "field": "database",
+                                "message": "Failed to save project due to a database/integrity error."
+                            })
 
                 elif f.name.endswith(".json"):
                     f.seek(0)
                     data = json.loads(f.read().decode("utf-8", errors="ignore"))
                     items = data if isinstance(data, list) else [data]
-                    for row in items:
+                    for row_idx, row in enumerate(items, start=1):
                         name = row.get("name")
                         if not name:
+                            errors.append({
+                                "row": row_idx,
+                                "field": "name",
+                                "message": "Project Name is required."
+                            })
                             continue
-                        proj = ProjectService.create_project(
-                            organization=organization,
-                            created_by=request.user if request.user.is_authenticated else None,
-                            **row
-                        )
-                        imported.append({"id": proj.id, "name": proj.name, "filename": f.name})
+                        try:
+                            proj = ProjectService.create_project(
+                                organization=organization,
+                                created_by=request.user if request.user.is_authenticated else None,
+                                **row
+                            )
+                            imported.append({"id": proj.id, "name": proj.name, "filename": f.name})
+                        except Exception as e:
+                            logger.exception("Failed to save json project in bulk import")
+                            errors.append({
+                                "row": row_idx,
+                                "field": "database",
+                                "message": "Failed to save project due to a database/integrity error."
+                            })
                 else:
                     imported.append({"filename": f.name, "document_id": doc.id})
 
             except Exception as e:
-                errors.append({"filename": f.name, "error": str(e)})
+                logger.exception("Failed to process file in bulk import")
+                errors.append({
+                    "row": 0,
+                    "field": "file",
+                    "message": f"Failed to process file: {str(e)}"
+                })
 
         return Response({"imported": imported, "errors": errors}, status=status.HTTP_201_CREATED)
 
