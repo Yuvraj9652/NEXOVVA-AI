@@ -204,7 +204,12 @@ export default function ProjectKnowledgeBase() {
       if (searchQuery) params.set("search", searchQuery)
       if (statusFilter) params.set("status", statusFilter)
       if (typeFilter) params.set("property_type", typeFilter)
-      return api.get("/api/knowledge-base/", { params }).then((res) => res.data.results || res.data)
+      return api.get("/api/knowledge-base/projects/", { params }).then((res) => {
+        const data = res.data
+        if (Array.isArray(data)) return data
+        if (data && Array.isArray(data.results)) return data.results
+        return []
+      })
     },
     placeholderData: (previousData) => previousData,
     refetchInterval: 30000,
@@ -212,13 +217,18 @@ export default function ProjectKnowledgeBase() {
 
   const { data: allProjects = [] } = useQuery({
     queryKey: ["allKnowledgeBaseProjects"],
-    queryFn: () => api.get("/api/knowledge-base/").then((res) => res.data.results || res.data),
+    queryFn: () => api.get("/api/knowledge-base/projects/").then((res) => {
+      const data = res.data
+      if (Array.isArray(data)) return data
+      if (data && Array.isArray(data.results)) return data.results
+      return []
+    }),
     refetchInterval: 30000,
   })
 
   const { data: stats = {} } = useQuery({
     queryKey: ["knowledgeBaseStats"],
-    queryFn: () => api.get("/api/knowledge-base/stats/").then((res) => res.data),
+    queryFn: () => api.get("/api/knowledge-base/projects/stats/").then((res) => res.data),
   })
 
   const dynamicStats = {
@@ -232,7 +242,12 @@ export default function ProjectKnowledgeBase() {
 
   const { data: trashProjects = [] } = useQuery({
     queryKey: ["knowledgeBaseTrash"],
-    queryFn: () => api.get("/api/knowledge-base/trash/").then((res) => res.data),
+    queryFn: () => api.get("/api/knowledge-base/projects/trash/").then((res) => {
+      const data = res.data
+      if (Array.isArray(data)) return data
+      if (data && Array.isArray(data.results)) return data.results
+      return []
+    }),
     enabled: showTrash,
   })
 
@@ -240,7 +255,12 @@ export default function ProjectKnowledgeBase() {
     queryKey: ["projectChatSessions", selectedProject?.id],
     queryFn: () =>
       selectedProject
-        ? api.get(`/api/knowledge-base/${selectedProject.id}/chat-sessions/`).then((res) => res.data.results || res.data)
+        ? api.get(`/api/knowledge-base/chat-sessions/`, { params: { project_id: selectedProject.id } }).then((res) => {
+            const data = res.data
+            if (Array.isArray(data)) return data
+            if (data && Array.isArray(data.results)) return data.results
+            return []
+          })
         : [],
     enabled: !!selectedProject && showChatModal,
   })
@@ -253,7 +273,7 @@ export default function ProjectKnowledgeBase() {
   }
 
   const createProjectMutation = useMutation({
-    mutationFn: (data) => api.post("/api/knowledge-base/", data),
+    mutationFn: (data) => api.post("/api/knowledge-base/projects/", data),
     onSuccess: () => {
       invalidateAllProjectQueries()
       setShowAddModal(false)
@@ -265,7 +285,7 @@ export default function ProjectKnowledgeBase() {
   })
 
   const updateProjectMutation = useMutation({
-    mutationFn: ({ id, data }) => api.patch(`/api/knowledge-base/${id}/`, data),
+    mutationFn: ({ id, data }) => api.patch(`/api/knowledge-base/projects/${id}/`, data),
     onSuccess: () => {
       invalidateAllProjectQueries()
       setShowEditModal(false)
@@ -277,7 +297,7 @@ export default function ProjectKnowledgeBase() {
   })
 
   const deleteProjectMutation = useMutation({
-    mutationFn: (id) => api.delete(`/api/knowledge-base/${id}/`),
+    mutationFn: (id) => api.delete(`/api/knowledge-base/projects/${id}/`),
     onSuccess: () => {
       invalidateAllProjectQueries()
       showToast("Project archived", "success")
@@ -286,7 +306,7 @@ export default function ProjectKnowledgeBase() {
   })
 
   const restoreProjectMutation = useMutation({
-    mutationFn: (id) => api.post(`/api/knowledge-base/${id}/restore/`),
+    mutationFn: (id) => api.post(`/api/knowledge-base/projects/${id}/restore/`),
     onSuccess: () => {
       invalidateAllProjectQueries()
       showToast("Project restored", "success")
@@ -295,7 +315,7 @@ export default function ProjectKnowledgeBase() {
   })
 
   const duplicateProjectMutation = useMutation({
-    mutationFn: (id) => api.post(`/api/knowledge-base/${id}/duplicate/`),
+    mutationFn: (id) => api.post(`/api/knowledge-base/projects/${id}/duplicate/`),
     onSuccess: () => {
       invalidateAllProjectQueries()
       showToast("Project duplicated", "success")
@@ -304,7 +324,7 @@ export default function ProjectKnowledgeBase() {
   })
 
   const bulkImportMutation = useMutation({
-    mutationFn: (formData) => api.post("/api/knowledge-base/bulk_import/", formData, {
+    mutationFn: (formData) => api.post("/api/knowledge-base/projects/bulk_import/", formData, {
       headers: { "Content-Type": "multipart/form-data" },
     }),
     onSuccess: (res) => {
@@ -325,7 +345,7 @@ export default function ProjectKnowledgeBase() {
   })
 
   const chatMutation = useMutation({
-    mutationFn: ({ id, message }) => api.post(`/api/knowledge-base/${id}/chat/`, { message }),
+    mutationFn: ({ id, message }) => api.post(`/api/knowledge-base/projects/${id}/chat/`, { message }),
     onSuccess: (res) => {
       setChatMessages((prev) => [...prev, { role: "assistant", content: res.data.response, created_at: new Date().toISOString() }])
     },
@@ -412,7 +432,10 @@ export default function ProjectKnowledgeBase() {
     setChatInput("")
   }
 
-  const filteredProjects = (projects || []).filter((p) => {
+  const projectsList = Array.isArray(projects)
+    ? projects
+    : (projects && Array.isArray(projects.results) ? projects.results : [])
+  const filteredProjects = projectsList.filter((p) => {
     if (showTrash && p.status !== "ARCHIVED") return false
     if (!showTrash && p.status === "ARCHIVED") return false
     if (searchQuery) {
@@ -1815,7 +1838,7 @@ function ChatTab({ project }) {
   const chatEndRef = useRef(null)
 
   useEffect(() => {
-    api.get(`/api/knowledge-base/${project.id}/chat-sessions/`).then((res) => {
+    api.get(`/api/knowledge-base/chat-sessions/`, { params: { project_id: project.id } }).then((res) => {
       setSessions(res.data.results || res.data || [])
     }).catch(() => {})
   }, [project.id])
@@ -1836,7 +1859,7 @@ function ChatTab({ project }) {
     if (!input.trim() || !activeSession) return
     const userMsg = { role: "user", content: input, created_at: new Date().toISOString() }
     setMessages((prev) => [...prev, userMsg])
-    api.post(`/api/knowledge-base/${project.id}/chat/`, { message: input }).then((res) => {
+    api.post(`/api/knowledge-base/projects/${project.id}/chat/`, { message: input }).then((res) => {
       setMessages((prev) => [...prev, { role: "assistant", content: res.data.response, created_at: new Date().toISOString() }])
       setInput("")
     }).catch(() => {
@@ -1865,7 +1888,7 @@ function ChatTab({ project }) {
           </select>
           <button
             onClick={() => {
-              api.post(`/api/knowledge-base/${project.id}/chat-sessions/`, { title: "New Chat" }).then((res) => {
+              api.post(`/api/knowledge-base/chat-sessions/`, { project: project.id, title: "New Chat" }).then((res) => {
                 setSessions((prev) => [...prev, res.data])
                 setActiveSession(res.data.id)
               })
