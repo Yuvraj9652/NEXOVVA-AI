@@ -33,6 +33,7 @@ from apps.authentication.serializers import (
     MFAVerifySerializer,
     MFADisableSerializer,
     MFAVerifyLoginSerializer,
+    CreatePasswordSerializer,
 )
 from apps.authentication.services import AuthService, ProfileService
 
@@ -281,6 +282,30 @@ class ChangePasswordView(GenericAPIView):
             {
                 "success": True,
                 "message": "Password changed successfully.",
+                "data": {},
+                "errors": [],
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class CreatePasswordView(GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = CreatePasswordSerializer
+
+    @extend_schema(
+        summary="Create password",
+        description="Creates a password for the currently authenticated user if they do not have one (e.g. social login users).",
+        responses={200: OpenApiResponse(description="Password created successfully")}
+    )
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        AuthService.create_password(request.user, serializer.validated_data)
+        return Response(
+            {
+                "success": True,
+                "message": "Password created successfully.",
                 "data": {},
                 "errors": [],
             },
@@ -573,6 +598,7 @@ class GoogleOnboardingView(APIView):
                             "name": org.name,
                             "slug": org.slug,
                         },
+                        "has_usable_password": request.user.has_usable_password(),
                     },
                 },
                 "errors": [],
@@ -803,6 +829,7 @@ class MFAVerifyLoginView(GenericAPIView):
                             "name": user_profile.organization.name if user_profile.organization else None,
                             "slug": user_profile.organization.slug if user_profile.organization else None,
                         } if user_profile.organization else None,
+                        "has_usable_password": user.has_usable_password(),
                     }
                 },
                 "errors": []

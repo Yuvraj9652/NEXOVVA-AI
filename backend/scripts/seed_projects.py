@@ -13,11 +13,9 @@ from apps.properties.models import Project
 from apps.knowledge_base.models import ProjectMedia, ProjectAnalytics, ProjectAmenity, ProjectFAQ, ProjectHighlight
 
 def seed():
-    org = Organization.objects.first()
-    if not org:
-        org = Organization.objects.create(name="Nexova Demo Org", slug="nexova-demo")
-    
-    user = CustomUser.objects.first()
+    from apps.accounts.models import UserProfile
+    user = CustomUser.objects.get(username="check")
+    org = UserProfile.objects.get(user=user).organization
     
     projects_data = [
         {

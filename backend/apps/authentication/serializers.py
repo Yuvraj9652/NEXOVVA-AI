@@ -13,13 +13,19 @@ User = get_user_model()
 
 
 class UserSerializer(serializers.ModelSerializer):
+    has_usable_password = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = [
             "id", "username", "email", "first_name", "last_name", 
-            "phone_number", "is_email_verified", "is_phone_verified", "last_activity"
+            "phone_number", "is_email_verified", "is_phone_verified", "last_activity",
+            "has_usable_password"
         ]
         read_only_fields = ["id", "is_email_verified", "is_phone_verified", "last_activity"]
+
+    def get_has_usable_password(self, obj):
+        return obj.has_usable_password()
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
@@ -223,3 +229,20 @@ class MFADisableSerializer(serializers.Serializer):
 class MFAVerifyLoginSerializer(serializers.Serializer):
     temp_token = serializers.CharField()
     token = serializers.CharField(max_length=6, min_length=6)
+
+
+class CreatePasswordSerializer(serializers.Serializer):
+    new_password = serializers.CharField(write_only=True, style={"input_type": "password"})
+    confirm_password = serializers.CharField(write_only=True, style={"input_type": "password"})
+
+    def validate_new_password(self, value):
+        try:
+            validate_password(value)
+        except DjangoValidationError as e:
+            raise serializers.ValidationError(list(e.messages))
+        return value
+
+    def validate(self, data):
+        if data["new_password"] != data["confirm_password"]:
+            raise serializers.ValidationError({"confirm_password": "New passwords do not match."})
+        return data

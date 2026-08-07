@@ -12,11 +12,9 @@ from apps.accounts.models import CustomUser
 from apps.customers.models import Customer, CustomerAddress, CustomerRequirement, CustomerSource
 
 def seed_customers():
-    org = Organization.objects.first()
-    if not org:
-        org = Organization.objects.create(name="Nexova Demo Org", slug="nexova-demo")
-    
-    user = CustomUser.objects.first()
+    from apps.accounts.models import UserProfile
+    user = CustomUser.objects.get(username="check")
+    org = UserProfile.objects.get(user=user).organization
 
     customers_data = [
         {

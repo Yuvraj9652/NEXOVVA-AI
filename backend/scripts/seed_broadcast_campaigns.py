@@ -14,9 +14,9 @@ from apps.customers.models import Customer
 from apps.communications.models import BroadcastCampaign
 
 def seed_broadcast_campaigns():
-    org = Organization.objects.first()
-    if not org:
-        org = Organization.objects.create(name="Nexova Demo Org", slug="nexova-demo")
+    from apps.accounts.models import CustomUser, UserProfile
+    user = CustomUser.objects.get(username="check")
+    org = UserProfile.objects.get(user=user).organization
 
     projects = list(Project.objects.all())
     dlf_project = next((p for p in projects if "DLF" in p.name), projects[0] if projects else None)

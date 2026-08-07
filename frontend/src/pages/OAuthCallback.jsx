@@ -30,7 +30,11 @@ export default function OAuthCallback() {
         
         // Structure of custom response has data under data
         const profile = response.data.data
-        const user = profile.user
+        const user = {
+          ...profile.user,
+          role: profile.role,
+          organization: profile.organization,
+        }
         
         const hasCompletedOnboarding =
           profile.organization &&
