@@ -32,11 +32,20 @@ export default function OAuthCallback() {
         const profile = response.data.data
         const user = profile.user
         
-        // Log in via authStore
-        login(access, refresh, user)
-        
-        // Redirect to dashboard
-        navigate("/dashboard")
+        const hasCompletedOnboarding =
+          profile.organization &&
+          profile.organization.name !== "Default Organization" &&
+          profile.role === "ADMIN"
+
+        if (hasCompletedOnboarding) {
+          // Log in via authStore
+          login(access, refresh, user)
+          // Redirect to dashboard
+          navigate("/dashboard")
+        } else {
+          // Redirect to complete workspace page to configure organization name
+          navigate(`/complete-workspace?access=${access}&refresh=${refresh}`)
+        }
       } catch (err) {
         setError("Failed to fetch user profile. Redirecting to login...")
         setTimeout(() => navigate("/login"), 3000)

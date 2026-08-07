@@ -12,6 +12,7 @@ import Login from "./pages/Login"
 import Register from "./pages/Register"
 import OTPVerify from "./pages/OTPVerify"
 import OAuthCallback from "./pages/OAuthCallback"
+import CompleteWorkspace from "./pages/CompleteWorkspace"
 import ForgotPassword from "./pages/ForgotPassword"
 import ResetPassword from "./pages/ResetPassword"
 import Settings from "./pages/Settings"
@@ -67,6 +68,7 @@ function AppContent() {
         <Route path="/oauth-callback" element={<OAuthCallback />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/complete-workspace" element={<CompleteWorkspace />} />
 
         {/* Protected Dashboard Layout */}
         <Route
