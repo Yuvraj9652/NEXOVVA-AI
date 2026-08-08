@@ -33,6 +33,7 @@ from apps.authentication.serializers import (
     MFAVerifySerializer,
     MFADisableSerializer,
     MFAVerifyLoginSerializer,
+    CreatePasswordSerializer,
 )
 from apps.authentication.services import AuthService, ProfileService
 
@@ -288,6 +289,30 @@ class ChangePasswordView(GenericAPIView):
         )
 
 
+class CreatePasswordView(GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = CreatePasswordSerializer
+
+    @extend_schema(
+        summary="Create password",
+        description="Creates a password for the currently authenticated user if they do not have one (e.g. social login users).",
+        responses={200: OpenApiResponse(description="Password created successfully")}
+    )
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        AuthService.create_password(request.user, serializer.validated_data)
+        return Response(
+            {
+                "success": True,
+                "message": "Password created successfully.",
+                "data": {},
+                "errors": [],
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
 class ForgotPasswordView(GenericAPIView):
     permission_classes = [permissions.AllowAny]
     serializer_class = ForgotPasswordSerializer
@@ -428,7 +453,8 @@ class GoogleLoginRedirectView(View):
             auth_params,
         )
         return redirect(redirect_url)
-
+import time
+import jwt
 
 class GoogleLoginSuccessView(View):
     def get(self, request, *args, **kwargs):
@@ -457,6 +483,21 @@ class GoogleLoginSuccessView(View):
         try:
             access_token_data = client.get_access_token(code)
             token = adapter.parse_token(access_token_data)
+            print("SERVER UNIX TIME:", int(time.time()))
+
+            if "id_token" in access_token_data:
+                decoded = jwt.decode(
+                    access_token_data["id_token"],
+                    options={
+                        "verify_signature": False,
+                        "verify_exp": False,
+                        "verify_iat": False,
+                    },
+                )
+
+                print("GOOGLE TOKEN iat:", decoded.get("iat"))
+                print("GOOGLE TOKEN exp:", decoded.get("exp"))
+                print("IAT DIFFERENCE:", decoded.get("iat", 0) - int(time.time()))
             if app.pk:
                 token.app = app
             social_login = adapter.complete_login(request, app, token, response=access_token_data)
@@ -477,6 +518,93 @@ class GoogleLoginSuccessView(View):
         frontend_base_url = getattr(settings, "FRONTEND_URL", "http://localhost:3000").rstrip("/")
         frontend_url = f"{frontend_base_url}/oauth-callback?access={tokens['access']}&refresh={tokens['refresh']}"
         return redirect(frontend_url)
+
+
+class GoogleOnboardingView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        summary="Complete Google OAuth Workspace Onboarding",
+        description="Creates an organization, sets role to ADMIN, links to user, seeds database, and returns JWT tokens.",
+        responses={200: OpenApiResponse(description="Onboarding completed successfully.")}
+    )
+    def post(self, request, *args, **kwargs):
+        from rest_framework_simplejwt.tokens import RefreshToken
+        from apps.organizations.models import Organization
+        from apps.accounts.models import UserProfile
+        from django.db import transaction
+        from django.utils import timezone
+
+        organization_name = request.data.get("organization_name")
+        if not organization_name or not organization_name.strip():
+            return Response(
+                {
+                    "success": False,
+                    "message": "Organization name is required.",
+                    "data": {},
+                    "errors": [{"code": "required", "field": "organization_name", "message": "Organization name is required."}],
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            user_profile, _ = UserProfile.objects.get_or_create(user=request.user)
+            if user_profile.organization and user_profile.organization.name != "Default Organization":
+                return Response(
+                    {
+                        "success": False,
+                        "message": "Onboarding already completed.",
+                        "data": {},
+                        "errors": [],
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Create organization
+            org = Organization.objects.create(name=organization_name.strip())
+
+            # Configure org and role as ADMIN
+            user_profile.organization = org
+            user_profile.role = UserProfile.Roles.ADMIN
+            user_profile.save(update_fields=["organization", "role"])
+
+            # Seed default organization workspace data
+            from apps.common.seed_service import seed_organization_data
+            seed_organization_data(org, request.user)
+
+        # Update last activity
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        User.objects.filter(pk=request.user.pk).update(last_activity=timezone.now())
+
+        # Generate tokens
+        refresh = RefreshToken.for_user(request.user)
+        return Response(
+            {
+                "success": True,
+                "message": "Workspace onboarding completed successfully.",
+                "data": {
+                    "access": str(refresh.access_token),
+                    "refresh": str(refresh),
+                    "user": {
+                        "id": str(request.user.id),
+                        "username": request.user.username,
+                        "email": request.user.email,
+                        "first_name": request.user.first_name,
+                        "last_name": request.user.last_name,
+                        "role": user_profile.role,
+                        "organization": {
+                            "id": str(org.id),
+                            "name": org.name,
+                            "slug": org.slug,
+                        },
+                        "has_usable_password": request.user.has_usable_password(),
+                    },
+                },
+                "errors": [],
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class MFAStatusView(APIView):
@@ -701,6 +829,7 @@ class MFAVerifyLoginView(GenericAPIView):
                             "name": user_profile.organization.name if user_profile.organization else None,
                             "slug": user_profile.organization.slug if user_profile.organization else None,
                         } if user_profile.organization else None,
+                        "has_usable_password": user.has_usable_password(),
                     }
                 },
                 "errors": []

@@ -96,6 +96,32 @@
   transform: translateZ(0);
 }
 
+/* Custom Glassmorphism Theme Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(20, 184, 166, 0.6), rgba(245, 158, 11, 0.6));
+  border-radius: 8px;
+  border: 2px solid rgba(15, 23, 42, 0.4);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(20, 184, 166, 0.9), rgba(245, 158, 11, 0.9));
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(20, 184, 166, 0.6) rgba(15, 23, 42, 0.6);
+}
+
 .hide-scrollbar::-webkit-scrollbar {
   width: 6px;
 }

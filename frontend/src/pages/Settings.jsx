@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react"
-import { Lock, Shield, ShieldCheck, ShieldAlert, QrCode, Check, AlertTriangle, Key } from "lucide-react"
+import { Lock, Shield, ShieldCheck, ShieldAlert, QrCode, Check, AlertTriangle, Key, ChevronLeft } from "lucide-react"
 import api from "../api/client"
 import useAuthStore from "../store/authStore"
 
@@ -60,9 +60,29 @@ export default function Settings() {
   const [mfaSuccess, setMfaSuccess] = useState("")
   const [isMfaActionLoading, setIsMfaActionLoading] = useState(false)
 
+  const hasUsablePassword = user?.has_usable_password !== false
+
   useEffect(() => {
     fetchMfaStatus()
+    fetchProfile()
   }, [])
+
+  const fetchProfile = async () => {
+    try {
+      const response = await api.get("/api/auth/profile/")
+      const profile = response.data.data
+      if (profile && profile.user) {
+        const completeUser = {
+          ...profile.user,
+          role: profile.role,
+          organization: profile.organization,
+        }
+        useAuthStore.getState().updateUser(completeUser)
+      }
+    } catch (err) {
+      console.error("Failed to fetch user profile", err)
+    }
+  }
 
   const fetchMfaStatus = async () => {
     setIsMfaLoading(true)
@@ -88,24 +108,46 @@ export default function Settings() {
 
     setIsPwdLoading(true)
     try {
-      await api.post("/api/auth/change-password/", {
-        old_password: oldPassword,
-        new_password: newPassword,
-        confirm_new_password: confirmPassword,
-      })
-      setPwdSuccess("Password updated successfully!")
+      if (!hasUsablePassword) {
+        await api.post("/api/auth/create-password/", {
+          new_password: newPassword,
+          confirm_password: confirmPassword,
+        })
+        setPwdSuccess("Password created successfully!")
+        useAuthStore.getState().updateUser({
+          ...user,
+          has_usable_password: true,
+        })
+      } else {
+        await api.post("/api/auth/change-password/", {
+          old_password: oldPassword,
+          new_password: newPassword,
+          confirm_new_password: confirmPassword,
+        })
+        setPwdSuccess("Password updated successfully!")
+      }
       setOldPassword("")
       setNewPassword("")
       setConfirmPassword("")
     } catch (err) {
       const data = err.response?.data
-      setPwdError(
-        data?.old_password?.[0] ||
-        data?.new_password?.[0] ||
-        data?.confirm_new_password?.[0] ||
-        data?.detail ||
-        "Failed to change password. Please verify your current password."
-      )
+      if (!hasUsablePassword) {
+        setPwdError(
+          data?.new_password?.[0] ||
+          data?.confirm_password?.[0] ||
+          data?.non_field_errors?.[0] ||
+          data?.detail ||
+          "Failed to create password. Please try again."
+        )
+      } else {
+        setPwdError(
+          data?.old_password?.[0] ||
+          data?.new_password?.[0] ||
+          data?.confirm_new_password?.[0] ||
+          data?.detail ||
+          "Failed to change password. Please verify your current password."
+        )
+      }
     } finally {
       setIsPwdLoading(false)
     }
@@ -191,15 +233,24 @@ export default function Settings() {
       <div className="relative z-10 mx-auto max-w-7xl px-6 pt-8 pb-16 lg:px-12 space-y-8">
         
         {/* Header */}
-        <div className="animate-fade-in">
-          <h1 className="text-4xl font-extrabold tracking-tight text-foreground">
-            <span className="bg-gradient-to-r from-teal-500 to-amber-500 bg-clip-text text-transparent">Settings</span>{" "}
-            <span className="text-foreground">&</span>{" "}
-            <span className="bg-gradient-to-r from-amber-500 to-emerald-500 bg-clip-text text-transparent">Security</span>
-          </h1>
-          <p className="text-muted-foreground text-sm mt-2">
-            Manage your account security, passwords, and multi-factor authentication.
-          </p>
+        <div className="flex items-center gap-4 animate-fade-in">
+          <a
+            href="/dashboard"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card/60 text-muted-foreground hover:text-foreground hover:bg-muted/40 hover:border-teal-500/30 transition-all duration-300 shadow-sm shrink-0"
+            title="Back to Dashboard"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </a>
+          <div>
+            <h1 className="text-4xl font-extrabold tracking-tight text-foreground">
+              <span className="bg-gradient-to-r from-teal-500 to-amber-500 bg-clip-text text-transparent">Settings</span>{" "}
+              <span className="text-foreground">&</span>{" "}
+              <span className="bg-gradient-to-r from-amber-500 to-emerald-500 bg-clip-text text-transparent">Security</span>
+            </h1>
+            <p className="text-muted-foreground text-sm mt-1">
+              Manage your account security, passwords, and multi-factor authentication.
+            </p>
+          </div>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">
@@ -214,7 +265,9 @@ export default function Settings() {
             <div className="relative z-10 space-y-4">
               <div className="flex items-center gap-2 border-b border-border pb-3">
                 <Lock className="h-5 w-5 text-teal-500" />
-                <h2 className="text-lg font-bold text-foreground">Change Password</h2>
+                <h2 className="text-lg font-bold text-foreground">
+                  {hasUsablePassword ? "Change Password" : "Create Password"}
+                </h2>
               </div>
 
               {pwdError && (
@@ -230,19 +283,21 @@ export default function Settings() {
               )}
 
               <form onSubmit={handlePasswordChange} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
-                    Current Password
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    value={oldPassword}
-                    onChange={(e) => setOldPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="block w-full rounded-lg border border-border bg-muted/40 py-2 px-3 text-sm text-foreground placeholder-muted-foreground focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 transition-all"
-                  />
-                </div>
+                {hasUsablePassword && (
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+                      Current Password
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      value={oldPassword}
+                      onChange={(e) => setOldPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="block w-full rounded-lg border border-border bg-muted/40 py-2 px-3 text-sm text-foreground placeholder-muted-foreground focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500 transition-all"
+                    />
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
@@ -260,7 +315,7 @@ export default function Settings() {
 
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
-                    Confirm New Password
+                    {hasUsablePassword ? "Confirm New Password" : "Confirm Password"}
                   </label>
                   <input
                     type="password"
@@ -277,7 +332,9 @@ export default function Settings() {
                   disabled={isPwdLoading}
                   className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-teal-500 to-amber-600 py-2 text-sm font-bold text-white shadow-premium hover:shadow-premiumDark transition-all disabled:opacity-50"
                 >
-                  {isPwdLoading ? "Updating..." : "Update Password"}
+                  {isPwdLoading 
+                    ? (hasUsablePassword ? "Updating..." : "Creating...")
+                    : (hasUsablePassword ? "Update Password" : "Create Password")}
                 </button>
               </form>
             </div>

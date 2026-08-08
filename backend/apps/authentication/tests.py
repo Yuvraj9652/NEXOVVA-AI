@@ -279,3 +279,53 @@ class AuthenticationTests(TestCase):
         # Profile must exist
         profile = Profile.objects.get(user=user)
         self.assertIsNotNone(profile)
+
+    def test_create_password_flow(self):
+        from rest_framework_simplejwt.tokens import RefreshToken
+        # Create a user with unusable password (mimicking Google OAuth registration)
+        user = User.objects.create_user(
+            username="no_password_user",
+            email="nopassword@gmail.com"
+        )
+        user.set_unusable_password()
+        user.save()
+
+        self.assertFalse(user.has_usable_password())
+
+        # Generate token for authentication
+        refresh = RefreshToken.for_user(user)
+        access_token = str(refresh.access_token)
+
+        # 1. Mismatch validation check
+        response = self.client.post(
+            reverse("auth_create_password"),
+            data={"new_password": "StrongPass123!", "confirm_password": "DifferentPass123!"},
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {access_token}"
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("confirm_password", response.json()["message"])
+
+        # 2. Success create password check
+        response = self.client.post(
+            reverse("auth_create_password"),
+            data={"new_password": "StrongPass123!", "confirm_password": "StrongPass123!"},
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {access_token}"
+        )
+        self.assertEqual(response.status_code, 200)
+        
+        user.refresh_from_db()
+        self.assertTrue(user.has_usable_password())
+        self.assertTrue(user.check_password("StrongPass123!"))
+
+        # 3. Prevent creating password if usable password already exists
+        response = self.client.post(
+            reverse("auth_create_password"),
+            data={"new_password": "AnotherStrongPass123!", "confirm_password": "AnotherStrongPass123!"},
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {access_token}"
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("non_field_errors", response.json()["message"])
+

@@ -68,7 +68,7 @@ class ChatSessionViewSet(viewsets.ModelViewSet):
 
         # Call FastAPI service to communicate with Gemini
         try:
-            ai_response = AIService.call_chat(session_id=session.id, message=user_message)
+            ai_response = AIService.chat(session_id=session.id, message=user_message)
         except AIServiceOfflineException:
             return Response(
                 {"error": "AI Service is offline. Please verify the AI Service is running."},
@@ -218,5 +218,145 @@ class AIMatchingView(APIView):
             ]
 
         return Response(matches[:20], status=status.HTTP_200_OK)
+
+
+class AICommandCenterView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsOrganizationMember]
+
+    def _get_workspace_data(self, organization) -> dict:
+        from apps.customers.models import Customer
+        from apps.properties.models import Project
+        from apps.broadcast.models import Campaign
+        from apps.tasks.models import Task
+        from apps.leads.models import Lead
+        from apps.accounts.models import UserProfile
+
+        customers_count = Customer.objects.filter(organization=organization).count()
+        projects_count = Project.objects.filter(organization=organization).count()
+        campaigns_count = Campaign.objects.filter(organization=organization).count()
+        employees_count = UserProfile.objects.filter(organization=organization).count()
+        pending_tasks_count = Task.objects.filter(organization=organization, completed=False).count()
+        lead_count = Lead.objects.filter(organization=organization).count()
+
+        projects = Project.objects.filter(organization=organization)[:5]
+        campaigns = Campaign.objects.filter(organization=organization)[:5]
+        customers = Customer.objects.filter(organization=organization)[:10]
+        employees = UserProfile.objects.filter(organization=organization)[:5]
+        tasks = Task.objects.filter(organization=organization)[:10]
+
+        projects_summary = [f"{p.name} (Starting Price: {p.starting_price})" for p in projects]
+        campaigns_summary = [
+            f"{c.name} (Status: {c.status}, Sent: {c.total_sent}, Replied: {c.replied}, Interested: {c.interested})"
+            for c in campaigns
+        ]
+        customers_summary = [
+            f"{cust.first_name} {cust.last_name} (Email: {cust.email}, Status: {cust.lead_status})"
+            for cust in customers
+        ]
+        employees_summary = [f"{e.user.username}" for e in employees if e.user]
+        tasks_summary = [
+            f"{t.title} (Completed: {t.completed}, Due: {t.due_date.strftime('%Y-%m-%d %H:%M') if t.due_date else 'N/A'})"
+            for t in tasks
+        ]
+
+        return {
+            "customers_count": customers_count,
+            "projects_count": projects_count,
+            "campaigns_count": campaigns_count,
+            "employees_count": employees_count,
+            "pending_tasks_count": pending_tasks_count,
+            "lead_count": lead_count,
+            "projects_summary": projects_summary,
+            "campaigns_summary": campaigns_summary,
+            "customers_summary": customers_summary,
+            "employees_summary": employees_summary,
+            "tasks_summary": tasks_summary,
+        }
+
+    def get(self, request):
+        data = self._get_workspace_data(request.organization)
+        
+        reply = (
+            f"Hello! I am your NEXOVA AI Chief Sales Assistant. I have analyzed the live workspace for '{request.organization.name}'. "
+            f"We currently manage {data['customers_count']} customer records, {data['projects_count']} active properties/projects, "
+            f"and {data['campaigns_count']} broadcast campaigns. I see {data['pending_tasks_count']} pending tasks requiring follow-up."
+        )
+
+        workspace_summary = (
+            f"Live Workspace Status: {data['customers_count']} Customers | {data['projects_count']} Projects | "
+            f"{data['campaigns_count']} Campaigns | {data['pending_tasks_count']} Tasks Pending."
+        )
+
+        return Response({
+            "reply": reply,
+            "intent": "SYSTEM_WELCOME",
+            "confidence": 100,
+            "suggested_action": "VIEW_LEADS",
+            "current_task": "Operational Dashboard Summary Analysis",
+            "current_crm_update": "None - Dashboard initialized.",
+            "workspace_summary": workspace_summary,
+            "current_customer": None,
+            "current_project": None,
+            "current_campaign": None,
+            "knowledge_source": "Organization Database Selector"
+        }, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        query = request.data.get("query")
+        if not query:
+            return Response({"error": "query is a required field"}, status=status.HTTP_400_BAD_REQUEST)
+
+        data = self._get_workspace_data(request.organization)
+
+        schema = {
+            "reply": "Conversational reply text reflecting real workspace details and data counts where relevant.",
+            "intent": "Detected user intent (e.g. RECOMMENDATION, ANALYTICS, LEADS, TASK_CREATION, GENERAL)",
+            "confidence": "number representing confidence percentage",
+            "suggested_action": "e.g. LAUNCH_BROADCAST, VIEW_LEADS, CONTACT_CUSTOMER, CREATE_TASK, NONE",
+            "current_task": "Name of the current workspace action or task analyzed",
+            "current_crm_update": "Summary of CRM adjustments proposed or handled",
+            "workspace_summary": "Intelligent insight or highlight based on the live records",
+            "current_customer": "Name or ID of relevant customer if applicable",
+            "current_project": "Name or ID of relevant project if applicable",
+            "current_campaign": "Name or ID of relevant campaign if applicable",
+            "knowledge_source": "Details of references used"
+        }
+
+        prompt = (
+            f"You are the NEXOVA AI Chief Sales Assistant for Organization '{request.organization.name}'.\n"
+            f"Real Workspace Facts and Live Entities:\n"
+            f"- Projects count: {data['projects_count']} - List: {data['projects_summary']}\n"
+            f"- Campaigns count: {data['campaigns_count']} - List: {data['campaigns_summary']}\n"
+            f"- Salespeople count: {data['employees_count']} - List: {data['employees_summary']}\n"
+            f"- Customers count: {data['customers_count']} - List: {data['customers_summary']}\n"
+            f"- Lead records count: {data['lead_count']}\n"
+            f"- Pending follow-up tasks/meetings count: {data['pending_tasks_count']} - List: {data['tasks_summary']}\n\n"
+            f"The user has entered the following command or question: '{query}'\n\n"
+            f"Analyze the live facts, perform count matches, formulate recommendations, and output a structured response matching the schema choice."
+        )
+
+        try:
+            ai_res = AIService.generate_structured_output(prompt, schema)
+            return Response(ai_res, status=status.HTTP_200_OK)
+        except Exception as e:
+            # Fallback using live records to guarantee zero mock data even during timeouts/offline state
+            fallback_reply = (
+                f"I encountered a temporary connection issue. However, scanning our live records directly, "
+                f"I can verify we have {data['customers_count']} customers and {data['projects_count']} projects under '{request.organization.name}'."
+            )
+            return Response({
+                "reply": fallback_reply,
+                "intent": "OFFLINE_FALLBACK",
+                "confidence": 100,
+                "suggested_action": "NONE",
+                "current_task": "Local Database Scan",
+                "current_crm_update": "None - AI connection offline.",
+                "workspace_summary": f"Live count matches: {data['customers_count']} Customers, {data['projects_count']} Projects.",
+                "current_customer": None,
+                "current_project": None,
+                "current_campaign": None,
+                "knowledge_source": "Django Database Cache"
+            }, status=status.HTTP_200_OK)
+
 
 

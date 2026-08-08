@@ -58,6 +58,64 @@ export default function Dashboard() {
   const workflowEndRef = useRef(null)
   const workflowChatRef = useRef(null)
 
+  const [commandCenterData, setCommandCenterData] = useState(null)
+  const [commandInput, setCommandInput] = useState("")
+  const [isCommandLoading, setIsCommandLoading] = useState(false)
+
+  const fetchCommandCenterInit = async () => {
+    try {
+      const res = await api.get("/api/ai/command-center/")
+      setCommandCenterData(res.data)
+    } catch (err) {
+      console.error("Failed to load initial Command Center data:", err)
+    }
+  }
+
+  useEffect(() => {
+    fetchCommandCenterInit()
+  }, [])
+
+  const handleSendCommandQuery = async (e) => {
+    if (e) e.preventDefault()
+    if (!commandInput.trim() || isCommandLoading) return
+
+    setIsCommandLoading(true)
+    const userQuery = commandInput
+    setCommandInput("")
+
+    try {
+      const res = await api.post("/api/ai/command-center/", { query: userQuery })
+      setCommandCenterData(res.data)
+    } catch (err) {
+      console.error("Failed to submit command query:", err)
+      setCommandCenterData({
+        reply: "Failed to connect to the Live AI Command Center. Please verify the AI backend service is online.",
+        intent: "ERROR",
+        confidence: 0,
+        suggested_action: "NONE",
+        current_task: "Error handling query",
+        current_crm_update: "None",
+        workspace_summary: "No connection to database."
+      })
+    } finally {
+      setIsCommandLoading(false)
+    }
+  }
+
+  const handleQuickSuggestion = async (text) => {
+    if (isCommandLoading) return
+    setIsCommandLoading(true)
+    try {
+      const res = await api.post("/api/ai/command-center/", { query: text })
+      setCommandCenterData(res.data)
+    } catch (err) {
+      console.error("Failed suggestion query:", err)
+    } finally {
+      setIsCommandLoading(false)
+    }
+  }
+
+
   const ensureChatSession = async () => {
     if (chatSessionId) return chatSessionId
     try {
@@ -70,11 +128,6 @@ export default function Dashboard() {
     }
   }
 
-  useEffect(() => {
-    if (isChatOpen) {
-      ensureChatSession()
-    }
-  }, [isChatOpen])
   useEffect(() => {
     workflowChatRef.current?.scrollTo({
       top: workflowChatRef.current.scrollHeight,
@@ -415,130 +468,142 @@ export default function Dashboard() {
           </div>
         </section>
 
-        {/* ==================== AI MESSAGING WORKFLOW SECTION ==================== */}
+        {/* ==================== AI SALES COMMAND CENTER SECTION ==================== */}
         <section ref={sectionRefs.messaging} className="scroll-mt-24 space-y-6">
           <div className="dashboard-card group relative rounded-3xl border border-border bg-card/60 backdrop-blur-xl shadow-2xl overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-r from-amber-500/10 via-teal-500/5 to-emerald-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
             <div className="relative z-10">
               <div className="flex items-start gap-6 px-8 pt-8 pb-6">
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-tr from-amber-500/10 to-teal-500/10 text-amber-500 border border-amber-500/10">
-                  <MessageSquare className="h-7 w-7" />
+                  <Sparkles className="h-7 w-7 animate-pulse" />
                 </div>
                 <div className="flex-1">
-                  <h2 className="text-2xl font-extrabold text-foreground">AI Messaging</h2>
+                  <h2 className="text-2xl font-extrabold text-foreground">AI Sales Command Center</h2>
                   <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-                    Automated conversations from first greeting to post-sale retention — fully handled by AI.
+                    Continuous workspace monitoring, opportunity analysis, and autonomous sales action recommendations.
                   </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={toggleWorkflow}
-                    className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-xs font-bold transition-all duration-300 ${workflowRunning ? 'bg-gradient-to-r from-teal-500 to-amber-500 text-white shadow-lg shadow-teal-500/20' : 'bg-muted/50 text-muted-foreground hover:text-foreground border border-border'}`}
-                    disabled={workflowRunning}
-                  >
-                    {workflowRunning ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-                    {workflowRunning ? 'Running...' : 'Run Demo'}
-                  </button>
                 </div>
               </div>
 
-               <div className="mx-8 mb-8 grid lg:grid-cols-5 gap-4 rounded-2xl border border-border bg-background/50" style={{ height: '420px' }}>
-                {/* Left side - descriptions */}
-                <div className="lg:col-span-2 border-r border-border bg-muted/10 flex flex-col min-h-0">
-                  <div className="px-5 py-4 border-b border-border bg-muted/20">
-                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Workflow Phases</span>
+              <div className="mx-8 mb-8 grid lg:grid-cols-5 gap-6 rounded-2xl border border-border bg-background/50 p-6">
+                {/* Left Side: Interaction & Conversational Output */}
+                <div className="lg:col-span-3 flex flex-col justify-between space-y-6">
+                  <div className="rounded-2xl border border-teal-500/20 bg-card/40 p-6 flex flex-col justify-between min-h-[250px]">
+                    <div className="space-y-3">
+                      <span className="text-[10px] font-bold text-teal-400 uppercase tracking-wider block">AI CHIEF SALES ASSISTANT</span>
+                      <p className="text-xs text-foreground mt-2 leading-relaxed whitespace-pre-wrap">
+                        {commandCenterData?.reply || "Analyzing workspace data patterns..."}
+                      </p>
+                    </div>
+
+                    {commandCenterData?.suggested_action && commandCenterData.suggested_action !== "NONE" && (
+                      <div className="flex items-center gap-2 bg-teal-500/15 border border-teal-500/30 rounded-xl px-4 py-3 mt-4 text-[11px] text-teal-300 font-bold w-fit">
+                        <Zap className="h-4 w-4 text-amber-400" />
+                        <span>Recommended Action: {commandCenterData.suggested_action}</span>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-3 bg-muted/5 hide-scrollbar">
-                    {[
-                      { num: 1, title: "Welcome", desc: "AI greets the lead" },
-                      { num: 2, title: "Qualify", desc: "Asks qualifying questions" },
-                      { num: 3, title: "Recommend", desc: "Shows matching projects" },
-                      { num: 4, title: "QA", desc: "Answers customer questions" },
-                      { num: 5, title: "Book", desc: "Checks calendars, books slot" },
-                      { num: 6, title: "Assign", desc: "Assigns best salesperson" },
-                      { num: 7, title: "Remind", desc: "Sends timed reminders" },
-                      { num: 8, title: "Rate", desc: "Collects feedback" },
-                      { num: 9, title: "Follow-up", desc: "Smart follow-up engine" },
-                      { num: 10, title: "Retain", desc: "Long-term relationship" },
-                    ].map((step) => {
 
-                      const currentStep = workflowMessages[workflowMessages.length - 1]?.step ?? 0;
-                      // const currentStep = workflowMessages.length > 0 ? workflowMessages[workflowMessages.length - 1].step : 0
-                      const isCompleted = workflowRunning && currentStep >= step.num
-                      const isActive = workflowRunning && currentStep === step.num
+                  {/* Natural Language Command Input */}
+                  <div className="space-y-4">
+                    <form onSubmit={handleSendCommandQuery} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={commandInput}
+                        onChange={(e) => setCommandInput(e.target.value)}
+                        placeholder="Instruct AI: 'Find matching customers', 'Summarize campaigns', etc..."
+                        className="flex-1 bg-card border border-border rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-teal-500 text-foreground transition-all"
+                        disabled={isCommandLoading}
+                      />
+                      <button
+                        type="submit"
+                        className="bg-gradient-to-r from-teal-500 to-amber-500 text-white rounded-xl px-6 py-3 text-xs font-bold hover:shadow-lg transition-all"
+                        disabled={isCommandLoading}
+                      >
+                        {isCommandLoading ? "Analyzing..." : "Ask Assistant"}
+                      </button>
+                    </form>
 
-                      return (
-                        <div key={step.num} className={`flex items-start gap-3 transition-all duration-300 ${isActive ? 'text-foreground' : 'text-muted-foreground'}`}>
-                          <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold mt-0.5 transition-all duration-300 ${
-                            isActive ? 'bg-gradient-to-tr from-teal-500 to-amber-500 text-white shadow-sm' : 'bg-muted/50 text-muted-foreground'
-                          }`}>
-                            {isCompleted ? <CheckCircle className="h-3.5 w-3.5" /> : step.num}
-                          </div>
-                          <div>
-                            <p className="text-xs font-bold">{step.title}</p>
-                            <p className="text-[10px] text-muted-foreground">{step.desc}</p>
-                          </div>
-                        </div>
-                      )
-                    })}
+                    {/* Quick Suggestions */}
+                    <div className="space-y-2">
+                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">Quick Assistant Instructions</span>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          "Find best leads",
+                          "Find duplicate customers",
+                          "Recommend projects to customers",
+                          "Summarize campaign performance",
+                          "Compare active projects"
+                        ].map((suggestion, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => handleQuickSuggestion(suggestion)}
+                            className="bg-muted/40 hover:bg-muted/80 text-[10px] text-muted-foreground hover:text-foreground font-semibold px-3 py-1.5 rounded-lg border border-border transition-all"
+                            disabled={isCommandLoading}
+                          >
+                            {suggestion}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {/* Right side - chat messages */}
-                <div className="lg:col-span-3 flex flex-col min-h-0">
-                  <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-muted/20">
-                    <div className="flex h-2.5 w-2.5 rounded-full bg-red-500/80" />
-                    <div className="flex h-2.5 w-2.5 rounded-full bg-yellow-500/80" />
-                    <div className="flex h-2.5 w-2.5 rounded-full bg-green-500/80" />
-                    <span className="ml-2 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">NEXOVA AI Assistant</span>
-                  </div>
-                  <div ref={workflowChatRef} className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 bg-muted/5 hide-scrollbar scrollbar-thin scrollbar-thumb-teal-500/40 scrollbar-track-transparent" >
-                    {!workflowRunning && workflowMessages.length === 0 && (
-                      <div className="flex h-full flex-col items-center justify-center text-center">
-                        <MessageSquare className="h-8 w-8 text-muted-foreground/20 mx-auto mb-2" />
-                        <p className="text-xs text-muted-foreground">Click "Run Demo" to watch</p>
+                {/* Right Side: Operational Status Monitor */}
+                <div className="lg:col-span-2 rounded-2xl border border-border bg-muted/10 p-5 space-y-4 flex flex-col justify-between">
+                  <div className="space-y-4">
+                    <div className="border-b border-border pb-3 flex justify-between items-center">
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">AI Execution Monitor</span>
+                      <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
+                    </div>
+
+                    <div className="space-y-3">
+                      <div>
+                        <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Current Task</span>
+                        <p className="text-xs font-semibold text-foreground mt-0.5">{commandCenterData?.current_task || "System Monitor Idle"}</p>
                       </div>
-                    )}
-                    {workflowMessages.map((msg, idx) => (
-                      <motion.div
-                        key={idx}
-                        initial={{ opacity: 0, x: msg.sender === "ai" ? -20 : 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.35, ease: "easeOut" }}
-                        className={`flex gap-2 ${msg.sender === "ai" ? "" : "flex-row-reverse"}`}
-                      >
-                        <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold ${
-                          msg.sender === "ai" ? "bg-gradient-to-tr from-teal-500 to-amber-500 text-white shadow-sm" : "bg-muted text-muted-foreground border border-border"
-                        }`}>
-                          {msg.sender === "ai" ? <Bot className="h-3.5 w-3.5" /> : <User className="h-3.5 w-3.5" />}
+
+                      <div>
+                        <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Workspace Summary</span>
+                        <p className="text-xs font-semibold text-foreground mt-0.5">{commandCenterData?.workspace_summary || "Scanning Database records..."}</p>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Intent</span>
+                          <p className="text-xs font-semibold text-teal-400 mt-0.5">{commandCenterData?.intent || "N/A"}</p>
                         </div>
-                        <div className={`flex-1 max-w-[90%] rounded-xl px-3 py-2 text-[11px] leading-relaxed ${
-                          msg.sender === "ai"
-                            ? "bg-card/80 border border-teal-500/15 text-foreground shadow-sm"
-                            : "bg-gradient-to-r from-teal-500/90 to-amber-500/90 text-white shadow-sm"
-                        }`}>
-                          <p className="whitespace-pre-wrap">{msg.text}</p>
+                        <div>
+                          <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Confidence</span>
+                          <p className="text-xs font-semibold text-foreground mt-0.5">{commandCenterData?.confidence ? `${commandCenterData.confidence}%` : "100%"}</p>
                         </div>
-                      </motion.div>
-                    ))}
-                    {workflowRunning && (
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="flex gap-2"
-                      >
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-tr from-teal-500 to-amber-500 text-white shadow-sm">
-                          <Bot className="h-3.5 w-3.5" />
+                      </div>
+
+                      <div>
+                        <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">CRM Note Update</span>
+                        <p className="text-xs font-semibold text-foreground mt-0.5">{commandCenterData?.current_crm_update || "None"}</p>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 border-t border-border pt-3">
+                        <div>
+                          <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider block">Customer</span>
+                          <span className="text-[10px] text-muted-foreground truncate block">{commandCenterData?.current_customer || "None"}</span>
                         </div>
-                        <div className="rounded-xl px-3 py-2 bg-card/80 border border-teal-500/15">
-                          <div className="flex gap-1">
-                            <div className="h-1.5 w-1.5 rounded-full bg-teal-500 animate-pulse" />
-                            <div className="h-1.5 w-1.5 rounded-full bg-teal-500 animate-pulse" style={{ animationDelay: '0.2s' }} />
-                            <div className="h-1.5 w-1.5 rounded-full bg-teal-500 animate-pulse" style={{ animationDelay: '0.4s' }} />
-                          </div>
+                        <div>
+                          <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider block">Project</span>
+                          <span className="text-[10px] text-muted-foreground truncate block">{commandCenterData?.current_project || "None"}</span>
                         </div>
-                      </motion.div>
-                    )}
+                        <div>
+                          <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider block">Campaign</span>
+                          <span className="text-[10px] text-muted-foreground truncate block">{commandCenterData?.current_campaign || "None"}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-background/80 border border-border rounded-xl px-4 py-2.5 text-[10px] text-muted-foreground">
+                    <span className="font-semibold text-foreground">Knowledge Sources Used:</span> {commandCenterData?.knowledge_source || "Real-time Database"}
                   </div>
                 </div>
               </div>

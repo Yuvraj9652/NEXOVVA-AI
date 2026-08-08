@@ -264,6 +264,7 @@ class AuthService:
                     "name": user_profile.organization.name if user_profile.organization else None,
                     "slug": user_profile.organization.slug if user_profile.organization else None,
                 } if user_profile.organization else None,
+                "has_usable_password": user.has_usable_password(),
             }
         }
 
@@ -386,6 +387,16 @@ class AuthService:
         if not user.check_password(old_password):
             raise ValidationError({"old_password": "Old password is incorrect."})
 
+        user.set_password(new_password)
+        user.save()
+
+    @staticmethod
+    def create_password(user: User, data: dict) -> None:
+        """Create a password for the authenticated user who does not have a usable password."""
+        if user.has_usable_password():
+            raise ValidationError({"non_field_errors": "User already has a password."})
+
+        new_password = data.get("new_password")
         user.set_password(new_password)
         user.save()
 

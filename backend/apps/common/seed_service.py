@@ -6,6 +6,13 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.conf import settings
 
+# Import scripts exactly once
+from scripts import create_app_boilerplate
+from scripts import seed_projects
+from scripts import seed_customers
+from scripts import seed_broadcast_campaigns
+from scripts import seed_broadcast_app_campaigns
+
 from apps.organizations.models import Organization
 from apps.properties.models import Project, Unit
 from apps.contacts.models import Contact
@@ -50,8 +57,8 @@ def seed_organization_data(organization: Organization, admin_user: User):
 
         # 2. Create sub-users as Sales Agents
         agents_data = [
-            {"username": f"priya_{organization.id}", "email": f"priya@{organization.name.lower().replace(' ', '')}.com", "first_name": "Priya", "last_name": "Sharma", "title": "Senior Sales Agent"},
-            {"username": f"rohan_{organization.id}", "email": f"rohan@{organization.name.lower().replace(' ', '')}.com", "first_name": "Rohan", "last_name": "Iyer", "title": "Real Estate Broker"}
+            {"username": f"priya_{organization.id}", "email": f"priya_{organization.id}@{organization.name.lower().replace(' ', '')}.com", "first_name": "Priya", "last_name": "Sharma", "title": "Senior Sales Agent"},
+            {"username": f"rohan_{organization.id}", "email": f"rohan_{organization.id}@{organization.name.lower().replace(' ', '')}.com", "first_name": "Rohan", "last_name": "Iyer", "title": "Real Estate Broker"}
         ]
         
         seeded_users = []

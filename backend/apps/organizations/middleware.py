@@ -17,10 +17,19 @@ class TenantMiddleware:
                     if user and user.is_authenticated:
                         try:
                             profile = UserProfile.objects.select_related("organization").get(user=user)
+                            if not profile.organization:
+                                from apps.organizations.models import Organization
+                                default_org, _ = Organization.objects.get_or_create(name="Default Organization")
+                                profile.organization = default_org
+                                profile.save(update_fields=["organization"])
                             self._resolved_user_profile = profile
                             self._resolved_organization = profile.organization
                         except UserProfile.DoesNotExist:
-                            pass
+                            from apps.organizations.models import Organization
+                            default_org, _ = Organization.objects.get_or_create(name="Default Organization")
+                            profile = UserProfile.objects.create(user=user, organization=default_org)
+                            self._resolved_user_profile = profile
+                            self._resolved_organization = default_org
                 return self._resolved_organization
 
             @property

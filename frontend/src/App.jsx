@@ -12,6 +12,7 @@ import Login from "./pages/Login"
 import Register from "./pages/Register"
 import OTPVerify from "./pages/OTPVerify"
 import OAuthCallback from "./pages/OAuthCallback"
+import CompleteWorkspace from "./pages/CompleteWorkspace"
 import ForgotPassword from "./pages/ForgotPassword"
 import ResetPassword from "./pages/ResetPassword"
 import Settings from "./pages/Settings"
@@ -67,6 +68,7 @@ function AppContent() {
         <Route path="/oauth-callback" element={<OAuthCallback />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/complete-workspace" element={<CompleteWorkspace />} />
 
         {/* Protected Dashboard Layout */}
         <Route
@@ -83,6 +85,7 @@ function AppContent() {
                     <Route path="/company-workspace" element={<CompanyWorkspace />} />
                     <Route path="/company-workspace/project-hub" element={<ProjectHub />} />
                     <Route path="/company-workspace/project-hub/knowledge-base" element={<ProjectKnowledgeBase />} />
+                    <Route path="/customers" element={<CRM />} />
                     <Route path="/company-workspace/project-hub/broadcasting" element={<SmartProjectBroadcasting />} />
                     <Route path="/company-workspace/project-hub/ai-matching" element={<AICustomerMatching />} />
                     <Route path="/company-workspace/project-hub/analytics" element={<ProjectAnalytics />} />
